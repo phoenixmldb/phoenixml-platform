@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Phoenixml.Platform</RootNamespace>
+    <Description>Foundation library for the Phoenixml family of XML-aware tools — document model, undo/redo, editor primitives, account/license/update plumbing.</Description>
+    <PackageTags>xml;phoenixml;editor;document-model;undo;avalonia</PackageTags>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Phoenixml.Platform.Tests" />
+    <InternalsVisibleTo Include="Phoenixml.Platform.ArchTests" />
+  </ItemGroup>
+</Project>
