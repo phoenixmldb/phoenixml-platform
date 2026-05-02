@@ -3,6 +3,13 @@ using Xunit;
 
 namespace Phoenixml.Platform.ArchTests;
 
+// Note: at v0.2 the library brought in Avalonia. The arch test that previously forbade
+// Avalonia references whole-library-wide is gone — the invariant it described was a
+// v0.1-only thing. Other arch tests stay: namespace layering still matters.
+//
+// AbstractionsHasNoUiDependencies (added in v0.2) keeps the contracts namespace UI-free
+// — that invariant IS permanent, because contracts are the natural seam if a future
+// pure-logic-vs-Avalonia split happens.
 public class NamespaceLayeringTests
 {
     private static readonly System.Reflection.Assembly PlatformAssembly =
@@ -56,19 +63,18 @@ public class NamespaceLayeringTests
     }
 
     [Fact]
-    public void NoAvaloniaReferenceInTheLibrary()
+    public void AbstractionsHasNoUiDependencies()
     {
-        // The whole pure-logic-slice premise: Phoenixml.Platform must not reference Avalonia
-        // at any point (until/unless Shell + Editing land in this assembly later).
         var result = Types.InAssembly(PlatformAssembly)
+            .That()
+            .ResideInNamespace("Phoenixml.Platform.Abstractions")
             .ShouldNot()
-            .HaveDependencyOn("Avalonia")
+            .HaveDependencyOnAny("Avalonia", "System.Reactive")
             .GetResult();
 
         Assert.True(result.IsSuccessful,
-            "Phoenixml.Platform must not depend on Avalonia in this build. " +
-            "Failures: " + string.Join(", ",
-                result.FailingTypeNames ?? Array.Empty<string>()));
+            "Abstractions namespace must remain UI-free. Failures: " +
+            string.Join(", ", result.FailingTypeNames ?? Array.Empty<string>()));
     }
 
     [Fact]
