@@ -2,6 +2,9 @@
   <Folder Name="/src/">
     <Project Path="src/Phoenixml.Platform/Phoenixml.Platform.csproj" />
   </Folder>
+  <Folder Name="/spike/">
+    <Project Path="spike/Phoenixml.Platform.ChromeSpike/Phoenixml.Platform.ChromeSpike.csproj" />
+  </Folder>
   <Folder Name="/test/">
     <Project Path="test/Phoenixml.Platform.Tests/Phoenixml.Platform.Tests.csproj" />
     <Project Path="test/Phoenixml.Platform.ArchTests/Phoenixml.Platform.ArchTests.csproj" />

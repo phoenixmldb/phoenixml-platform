@@ -1,0 +1,36 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Phoenixml.Platform.ChromeSpike.MainWindow"
+        Title="Phoenixml Chrome Spike"
+        Width="900" Height="600"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        SystemDecorations="Full"
+        Background="#1E1E1E">
+    <Grid RowDefinitions="32,*,28">
+        <Border Grid.Row="0" Background="#252525" PointerPressed="TitleBar_PointerPressed">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                            Name="WindowsButtons">
+                    <Button Content="—" Click="Minimize_Click" Width="46" Height="32"
+                            Background="Transparent" Foreground="#CCCCCC" BorderThickness="0" />
+                    <Button Content="▢" Click="Maximize_Click" Width="46" Height="32"
+                            Background="Transparent" Foreground="#CCCCCC" BorderThickness="0" />
+                    <Button Content="✕" Click="Close_Click" Width="46" Height="32"
+                            Background="Transparent" Foreground="#CCCCCC" BorderThickness="0" />
+                </StackPanel>
+                <TextBlock Text="Phoenixml Chrome Spike" VerticalAlignment="Center"
+                           Margin="12,0" Foreground="#CCCCCC" />
+            </DockPanel>
+        </Border>
+
+        <TextBlock Grid.Row="1" Name="ContentLabel"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   Foreground="White" FontSize="24" />
+
+        <Border Grid.Row="2" Background="#007ACC">
+            <TextBlock Name="StatusLabel" Margin="8,0" VerticalAlignment="Center"
+                       Foreground="White" FontSize="12" />
+        </Border>
+    </Grid>
+</Window>

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <!-- This is throwaway code; CS1591 doc warnings are noise for a spike. -->
+    <!-- NU1903: Tmds.DBus.Protocol 0.20.0 high-severity advisory — transitive via
+         Avalonia.Desktop on Linux. Spike is never shipped; suppress rather than pin a
+         patched transitive that doesn't exist yet at Avalonia 11.2.4.
+         CA1515: Avalonia requires App and MainWindow to be public (XAML loader resolves
+         them by name at runtime); making them internal breaks the app. -->
+    <NoWarn>$(NoWarn);CS1591;NU1903;CA1515</NoWarn>
+    <NuGetAuditSuppress>https://github.com/advisories/GHSA-xrw6-gwf8-vvr9</NuGetAuditSuppress>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.Diagnostics" Condition="'$(Configuration)' == 'Debug'" />
+  </ItemGroup>
+</Project>
