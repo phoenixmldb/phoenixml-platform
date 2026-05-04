@@ -14,6 +14,7 @@
     <PackageVersion Include="Avalonia.Desktop" Version="11.2.4" />
     <PackageVersion Include="Avalonia.Themes.Fluent" Version="11.2.4" />
     <PackageVersion Include="Avalonia.Diagnostics" Version="11.2.4" />
+    <PackageVersion Include="Avalonia.Headless" Version="11.2.4" />
     <!-- Microsoft.Extensions (10.x major-version-aligned with net10.0) -->
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" />
