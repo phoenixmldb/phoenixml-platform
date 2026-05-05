@@ -1,0 +1,14 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Phoenixml.Platform.Editing.TextEditorView">
+    <!-- TODO(Plan 5): bind FontFamily to {DynamicResource Phoenixml.Typography.FontFamilyMono} once
+         typography tokens are wired into the theme. Hard-coded literal used for v0.3. -->
+    <TextBox Name="EditorBox"
+             AcceptsReturn="True"
+             TextWrapping="NoWrap"
+             FontFamily="Cascadia Mono, Consolas, monospace"
+             Background="{DynamicResource Phoenixml.Color.Surface.Base}"
+             Foreground="{DynamicResource Phoenixml.Color.Content.Primary}"
+             BorderThickness="0"
+             TextChanged="EditorBox_TextChanged" />
+</UserControl>
