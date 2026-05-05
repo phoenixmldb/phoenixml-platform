@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
-    tags: ['v*']
+    tags: ['v*', 'editor-xml-v*']
   pull_request:
     branches: [main]
 
@@ -28,12 +28,38 @@ jobs:
           dotnet-version: '10.0.x'
           dotnet-quality: 'preview'
 
-      - name: Determine version from git tags
+      - name: Determine version + project from git ref
         id: version
         run: |
-          # Use latest tag as base version; append commit count since tag for pre-release builds.
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          BASE_VERSION="${LATEST_TAG#v}"
+          REF="${{ github.ref }}"
+          PROJECT=""
+          if [[ "$REF" == refs/tags/editor-xml-v* ]]; then
+            PROJECT="Phoenixml.Platform.Editor.Xml"
+            LATEST_TAG=$(git describe --tags --abbrev=0 --match='editor-xml-v*' 2>/dev/null || echo "editor-xml-v0.0.0")
+            BASE_VERSION="${LATEST_TAG#editor-xml-v}"
+          elif [[ "$REF" == refs/tags/v* ]]; then
+            PROJECT="Phoenixml.Platform"
+            LATEST_TAG=$(git describe --tags --abbrev=0 --match='v*' --exclude='editor-xml-v*' 2>/dev/null || echo "v0.0.0")
+            BASE_VERSION="${LATEST_TAG#v}"
+          else
+            # Branch push (no tag) — pack both projects at their respective latest-tag versions.
+            PROJECT="ALL"
+            PLATFORM_TAG=$(git describe --tags --abbrev=0 --match='v*' --exclude='editor-xml-v*' 2>/dev/null || echo "v0.0.0")
+            EDITOR_XML_TAG=$(git describe --tags --abbrev=0 --match='editor-xml-v*' 2>/dev/null || echo "editor-xml-v0.0.0")
+            PLATFORM_BASE="${PLATFORM_TAG#v}"
+            EDITOR_XML_BASE="${EDITOR_XML_TAG#editor-xml-v}"
+            PLATFORM_COMMITS=$(git rev-list --count "${PLATFORM_TAG}..HEAD" 2>/dev/null || git rev-list --count HEAD)
+            EDITOR_XML_COMMITS=$(git rev-list --count "${EDITOR_XML_TAG}..HEAD" 2>/dev/null || git rev-list --count HEAD)
+            PLATFORM_VERSION="${PLATFORM_BASE}.${PLATFORM_COMMITS}"
+            EDITOR_XML_VERSION="${EDITOR_XML_BASE}.${EDITOR_XML_COMMITS}"
+            [[ "$PLATFORM_COMMITS" == "0" ]] && PLATFORM_VERSION="$PLATFORM_BASE"
+            [[ "$EDITOR_XML_COMMITS" == "0" ]] && EDITOR_XML_VERSION="$EDITOR_XML_BASE"
+            echo "platform_version=${PLATFORM_VERSION}" >> "$GITHUB_OUTPUT"
+            echo "editor_xml_version=${EDITOR_XML_VERSION}" >> "$GITHUB_OUTPUT"
+            echo "project=ALL" >> "$GITHUB_OUTPUT"
+            echo "Branch push: Platform=${PLATFORM_VERSION}, Editor.Xml=${EDITOR_XML_VERSION}"
+            exit 0
+          fi
           COMMITS_SINCE=$(git rev-list --count "${LATEST_TAG}..HEAD" 2>/dev/null || git rev-list --count HEAD)
           if [ "$COMMITS_SINCE" = "0" ]; then
             VERSION="$BASE_VERSION"
@@ -41,7 +67,8 @@ jobs:
             VERSION="${BASE_VERSION}.${COMMITS_SINCE}"
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Version: ${VERSION} (tag: ${LATEST_TAG}, +${COMMITS_SINCE} commits)"
+          echo "project=${PROJECT}" >> "$GITHUB_OUTPUT"
+          echo "Tag push: ${PROJECT} version ${VERSION}"
 
       - name: Restore
         run: dotnet restore
@@ -65,10 +92,25 @@ jobs:
       - name: Pack
         if: github.event_name == 'push'
         env:
+          PROJECT: ${{ steps.version.outputs.project }}
           PKG_VERSION: ${{ steps.version.outputs.version }}
+          PLATFORM_VERSION: ${{ steps.version.outputs.platform_version }}
+          EDITOR_XML_VERSION: ${{ steps.version.outputs.editor_xml_version }}
         run: |
-          dotnet pack src/Phoenixml.Platform -c Release --no-build \
-            -p:PackageVersion="$PKG_VERSION" -o ./artifacts
+          mkdir -p ./artifacts
+          if [[ "$PROJECT" == "Phoenixml.Platform" ]]; then
+            dotnet pack src/Phoenixml.Platform -c Release --no-build \
+              -p:PackageVersion="$PKG_VERSION" -o ./artifacts
+          elif [[ "$PROJECT" == "Phoenixml.Platform.Editor.Xml" ]]; then
+            dotnet pack src/Phoenixml.Platform.Editor.Xml -c Release --no-build \
+              -p:PackageVersion="$PKG_VERSION" -o ./artifacts
+          else
+            # Branch push — pack both at their respective tag-derived versions.
+            dotnet pack src/Phoenixml.Platform -c Release --no-build \
+              -p:PackageVersion="$PLATFORM_VERSION" -o ./artifacts
+            dotnet pack src/Phoenixml.Platform.Editor.Xml -c Release --no-build \
+              -p:PackageVersion="$EDITOR_XML_VERSION" -o ./artifacts
+          fi
 
       - name: Upload artifacts
         if: github.event_name == 'push'
@@ -82,7 +124,7 @@ jobs:
     # Only publish on tagged releases. Untagged main pushes still pack and upload
     # the artifact so it's available for local download + manual publish via
     # `dotnet nuget push --api-key "$PHOENIXML_NUGET_API"` if CI publish ever fails.
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/editor-xml-v'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
