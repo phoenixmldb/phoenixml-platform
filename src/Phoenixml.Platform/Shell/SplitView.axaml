@@ -1,0 +1,19 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Phoenixml.Platform.Shell.SplitView">
+    <Grid Name="RootGrid">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="300" />
+            <ColumnDefinition Width="4" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <ContentPresenter Name="Pane1Presenter" Grid.Column="0" />
+        <GridSplitter Name="Splitter"
+                      Grid.Column="1"
+                      ResizeDirection="Columns"
+                      Background="{DynamicResource Phoenixml.Color.Surface.Sunken}"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch" />
+        <ContentPresenter Name="Pane2Presenter" Grid.Column="2" />
+    </Grid>
+</UserControl>
