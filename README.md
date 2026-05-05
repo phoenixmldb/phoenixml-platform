@@ -71,6 +71,22 @@ var split = new SplitView
 mainWindow.SetContent(split);
 ```
 
+## Vocabulary bindings
+
+The foundation is vocabulary-agnostic — the editor primitives take provider interfaces. Vocabulary-specific NuGet packages supply concrete providers:
+
+- **`Phoenixml.Platform.Editor.Xml`** *(0.1.0)* — XML/XSD binding. `XmlDocument` backed by PhoenixmlDb.Core's XDM; `XmlTreeNodeProvider` adapts the XDM tree to `ITreeNodeProvider`; `XmlSchemaValidator` surfaces XSD validation errors as `IDiagnostic` for the Problems pane.
+- *(Future)* `Phoenixml.Platform.Editor.Xslt`, `Phoenixml.Platform.Editor.XQuery` — Workbench's bindings. Live in the Workbench repo, consume `Phoenixml.Platform` from NuGet, prove the boundary works without colocation.
+
+```csharp
+using Phoenixml.Platform.Editor.Xml;
+
+var doc = await XmlDocument.LoadAsync("/tmp/orders.xml", ct);
+documentService.Add(doc);
+
+treeView.SetProvider(doc.TreeNodes);  // wire the tree view to the document
+```
+
 ## Used by
 
 - **Phoenixml.Editor** (forthcoming) — XML/XSD authoring app.
