@@ -1,0 +1,28 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Phoenixml.Platform.Editing.ProblemsView">
+    <ListBox Name="DiagnosticsHost"
+             Background="{DynamicResource Phoenixml.Color.Surface.Base}"
+             DoubleTapped="DiagnosticsHost_DoubleTapped">
+        <ListBox.ItemTemplate>
+            <DataTemplate>
+                <StackPanel Orientation="Horizontal" Spacing="8" Margin="4,2">
+                    <TextBlock Text="{Binding SeverityGlyph}"
+                               Foreground="{Binding SeverityBrush}"
+                               VerticalAlignment="Center"
+                               FontSize="14"
+                               Width="16" />
+                    <TextBlock Text="{Binding Code}"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource Phoenixml.Color.Content.Secondary}"
+                               IsVisible="{Binding HasCode}"
+                               MinWidth="60" />
+                    <TextBlock Text="{Binding Message}"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource Phoenixml.Color.Content.Primary}"
+                               TextWrapping="NoWrap" />
+                </StackPanel>
+            </DataTemplate>
+        </ListBox.ItemTemplate>
+    </ListBox>
+</UserControl>
