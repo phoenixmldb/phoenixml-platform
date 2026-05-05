@@ -3,8 +3,21 @@
     <RootNamespace>Phoenixml.Platform.Editor.Xml</RootNamespace>
     <Description>XML/XSD vocabulary binding for Phoenixml.Platform — concrete IDocument and ITreeNodeProvider implementations against PhoenixmlDb.Core's XDM, XSD schema validation pipeline.</Description>
     <PackageTags>xml;xsd;phoenixml;editor;xdm;schema-validation</PackageTags>
+    <!--
+      The version of Phoenixml.Platform that ships in this package's NuGet dependency
+      list. CI overrides this via -p:PhoenixmlPlatformDepVersion=<latest stable> when
+      packing on an editor-xml-v* tag, so the published nuspec depends on the latest
+      stable Phoenixml.Platform release rather than a development build.
+    -->
+    <PhoenixmlPlatformDepVersion Condition="'$(PhoenixmlPlatformDepVersion)' == ''">0.3.0</PhoenixmlPlatformDepVersion>
   </PropertyGroup>
   <ItemGroup>
+    <!--
+      The <Properties> metadata scopes Version/PackageVersion to the referenced
+      project's evaluation only, isolating it from the build's global -p:Version.
+      Without this, packing Editor.Xml at v0.1.0 would inherit the global version
+      and produce a nuspec dep on Phoenixml.Platform 0.1.0 (which doesn't exist).
+    -->
     <ProjectReference Include="../Phoenixml.Platform/Phoenixml.Platform.csproj" />
   </ItemGroup>
   <ItemGroup>
@@ -14,4 +27,22 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Phoenixml.Platform.Editor.Xml.Tests" />
   </ItemGroup>
+
+  <!--
+    Override the Phoenixml.Platform dependency version that flows into the nuspec.
+    Without this, packing Editor.Xml with -p:PackageVersion=0.1.0 would inherit the
+    global into the ProjectReference's evaluation and produce a nuspec dep on
+    Phoenixml.Platform 0.1.0 — a version that doesn't exist on NuGet.
+
+    This target mutates the internal NuGet item that drives dep-version resolution,
+    just before the nuspec is generated.
+  -->
+  <Target Name="PinPhoenixmlPlatformDepVersion" BeforeTargets="GenerateNuspec">
+    <ItemGroup>
+      <_ProjectReferencesWithVersions
+          Condition="$([System.String]::Copy('%(Identity)').EndsWith('Phoenixml.Platform.csproj'))">
+        <ProjectVersion>$(PhoenixmlPlatformDepVersion)</ProjectVersion>
+      </_ProjectReferencesWithVersions>
+    </ItemGroup>
+  </Target>
 </Project>
