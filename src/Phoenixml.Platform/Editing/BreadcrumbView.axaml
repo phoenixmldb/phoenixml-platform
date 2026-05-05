@@ -1,0 +1,32 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Phoenixml.Platform.Editing.BreadcrumbView">
+    <Border Background="{DynamicResource Phoenixml.Color.Surface.Sunken}"
+            Padding="8,4">
+        <ItemsControl Name="SegmentsHost">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="{Binding Label}"
+                                Click="Segment_Click"
+                                Tag="{Binding Segment}"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Padding="4,0"
+                                Foreground="{DynamicResource Phoenixml.Color.Content.Primary}" />
+                        <TextBlock Text="›"
+                                   VerticalAlignment="Center"
+                                   Margin="2,0"
+                                   Foreground="{DynamicResource Phoenixml.Color.Content.Secondary}"
+                                   IsVisible="{Binding HasNext}" />
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </Border>
+</UserControl>
