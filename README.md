@@ -7,8 +7,12 @@ Foundation library for the [Phoenixml](https://phoenixml.dev) family of XML-awar
 The shared, vocabulary-agnostic substrate every Phoenixml app builds on:
 
 - **Document model** — `IDocument`, dirty tracking, command-based undo/redo with merge support, multi-document services.
-- **Editor primitives** (interfaces; UI controls land later) — tree/text view contracts, find/replace, problems pane.
+- **Editor primitives** — `TreeEditorView`, `TextEditorView`, `ProblemsView`, `BreadcrumbView`, `FindReplaceView`. Vocabulary-agnostic; vocabulary packages (e.g. `Phoenixml.Platform.Editor.Xml`) supply concrete `ITreeNodeProvider` implementations.
+- **Shell** — `MainWindow` with custom chrome, composable `StatusBar`, `SplitView` for two-pane layouts.
+- **Theming** — semantic color/spacing/typography tokens; Fluent Light/Dark + HighContrast.
+- **Hosting** — `PhoenixmlAppBuilder`, settings persistence, single-instance coordination, command registry.
 - **Account** (interfaces) — license, registration, update channel. Implementations consume the licensing API documented separately.
+- **Diagnostics** — structured logging + crash capture + rotating log file.
 - **Localization** — `IStringLocalizer` seam from day one; English-only ships in v1, expansion is demand-driven.
 
 ## Why one package
@@ -16,6 +20,8 @@ The shared, vocabulary-agnostic substrate every Phoenixml app builds on:
 We deliberately ship the foundation as a single rolled-up NuGet rather than 8+ thin packages. Reasoning lives in the design spec §2.5: every foundation namespace is a transitive dependency of every other anyway, and we already manage plenty of NuGet artifacts in the family. Internal modularity is preserved at the namespace level and enforced via architecture tests.
 
 ## Quick start
+
+### Document model
 
 ```csharp
 using Phoenixml.Platform.Abstractions.Documents;
@@ -39,6 +45,30 @@ public sealed class MyDocument : Document
 var doc = new MyDocument(new Uri("file:///tmp/foo.xml"));
 doc.Undo.Execute(new MyEditCommand(...));
 doc.Undo.Undo();
+```
+
+### Tree + text dual-view layout (XmlNotepad's signature ergonomic)
+
+```csharp
+using Avalonia.Layout;
+using Phoenixml.Platform.Editing;
+using Phoenixml.Platform.Shell;
+
+// Build a side-by-side tree + text editor inside a SplitView.
+var tree = new TreeEditorView();
+tree.SetProvider(myTreeProvider);   // ITreeNodeProvider supplied by your vocabulary package
+
+var text = new TextEditorView { Text = currentDocumentText };
+
+var split = new SplitView
+{
+    Orientation = Orientation.Horizontal,
+    Pane1Size = 320,
+    Pane1Content = tree,
+    Pane2Content = text,
+};
+
+mainWindow.SetContent(split);
 ```
 
 ## Used by
