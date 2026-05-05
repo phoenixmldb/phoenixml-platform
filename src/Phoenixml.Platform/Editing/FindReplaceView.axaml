@@ -1,0 +1,57 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Phoenixml.Platform.Editing.FindReplaceView">
+    <Border Padding="8" Background="{DynamicResource Phoenixml.Color.Surface.Base}">
+        <StackPanel Spacing="6">
+            <!-- Find / Replace text fields -->
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" >
+                <TextBlock Grid.Row="0" Grid.Column="0"
+                           Text="Find:"
+                           VerticalAlignment="Center"
+                           Margin="0,0,8,4"
+                           Foreground="{DynamicResource Phoenixml.Color.Content.Secondary}" />
+                <TextBox Grid.Row="0" Grid.Column="1"
+                         Name="SearchBox"
+                         Margin="0,0,0,4"
+                         TextChanged="SearchBox_TextChanged" />
+                <TextBlock Grid.Row="1" Grid.Column="0"
+                           Text="Replace:"
+                           VerticalAlignment="Center"
+                           Margin="0,0,8,0"
+                           Foreground="{DynamicResource Phoenixml.Color.Content.Secondary}" />
+                <TextBox Grid.Row="1" Grid.Column="1"
+                         Name="ReplaceBox"
+                         TextChanged="ReplaceBox_TextChanged" />
+            </Grid>
+
+            <!-- Toggle options -->
+            <WrapPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                <CheckBox Name="MatchCaseBox" Content="Match case" Margin="0,0,8,0"
+                          IsCheckedChanged="Option_Changed" />
+                <CheckBox Name="WholeWordBox" Content="Whole word" Margin="0,0,8,0"
+                          IsCheckedChanged="Option_Changed" />
+                <CheckBox Name="RegexBox" Content="Regex" Margin="0,0,8,0"
+                          IsCheckedChanged="Option_Changed" />
+                <CheckBox Name="XPathBox" Content="XPath"
+                          IsCheckedChanged="Option_Changed" />
+            </WrapPanel>
+
+            <!-- Scope selector -->
+            <ComboBox Name="ScopeBox"
+                      HorizontalAlignment="Stretch"
+                      SelectionChanged="ScopeBox_SelectionChanged">
+                <ComboBoxItem>Current document</ComboBoxItem>
+                <ComboBoxItem>All open documents</ComboBoxItem>
+                <ComboBoxItem>Connected collection</ComboBoxItem>
+            </ComboBox>
+
+            <!-- Action buttons -->
+            <WrapPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                <Button Content="Find" Click="Find_Click" Margin="0,0,4,0" />
+                <Button Content="Find next" Click="FindNext_Click" Margin="0,0,4,0" />
+                <Button Content="Replace" Click="Replace_Click" Margin="0,0,4,0" />
+                <Button Content="Replace all" Click="ReplaceAll_Click" />
+            </WrapPanel>
+        </StackPanel>
+    </Border>
+</UserControl>
