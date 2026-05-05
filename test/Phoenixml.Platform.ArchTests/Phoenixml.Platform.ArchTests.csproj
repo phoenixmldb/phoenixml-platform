@@ -10,5 +10,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Phoenixml.Platform/Phoenixml.Platform.csproj" />
+    <ProjectReference Include="../../src/Phoenixml.Platform.Editor.Xml/Phoenixml.Platform.Editor.Xml.csproj" />
   </ItemGroup>
 </Project>

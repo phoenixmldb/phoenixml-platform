@@ -91,4 +91,17 @@ public class NamespaceLayeringTests
             "Failures: " + string.Join(", ",
                 result.FailingTypeNames ?? Array.Empty<string>()));
     }
+
+    [Fact]
+    public void PlatformDoesNotDependOnEditorXml()
+    {
+        var result = Types.InAssembly(PlatformAssembly)
+            .ShouldNot()
+            .HaveDependencyOn("Phoenixml.Platform.Editor.Xml")
+            .GetResult();
+
+        Assert.True(result.IsSuccessful,
+            "Phoenixml.Platform must not depend on Editor.Xml — vocabulary bindings depend on the foundation, not the other way. Failures: " +
+            string.Join(", ", result.FailingTypeNames ?? Array.Empty<string>()));
+    }
 }
