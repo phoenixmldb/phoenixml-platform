@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Phoenixml.Platform.Editor.Xml</RootNamespace>
+    <Description>XML/XSD vocabulary binding for Phoenixml.Platform — concrete IDocument and ITreeNodeProvider implementations against PhoenixmlDb.Core's XDM, XSD schema validation pipeline.</Description>
+    <PackageTags>xml;xsd;phoenixml;editor;xdm;schema-validation</PackageTags>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Phoenixml.Platform/Phoenixml.Platform.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="PhoenixmlDb.Core" />
+    <PackageReference Include="PhoenixmlDb.XQuery" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Phoenixml.Platform.Editor.Xml.Tests" />
+  </ItemGroup>
+</Project>
