@@ -95,6 +95,29 @@ public sealed class XmlDocument : Document
         MarkClean();
     }
 
+    /// <summary>
+    /// Replaces the node behind <paramref name="id"/> with <paramref name="replacement"/>.
+    /// XdmNode types are immutable; "edits" happen by constructing a new node with the
+    /// changed properties and swapping it into the resolver dictionary. The NodeId is
+    /// preserved so parent Children lists (which reference by id) remain valid.
+    /// </summary>
+    /// <param name="id">The NodeId of the node to replace.</param>
+    /// <param name="replacement">The replacement node; its <see cref="XdmNode.Id"/> must equal <paramref name="id"/>.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="replacement"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException"><paramref name="replacement"/>'s Id does not match <paramref name="id"/>.</exception>
+    /// <exception cref="InvalidOperationException">No node with <paramref name="id"/> exists in this document.</exception>
+    internal void ReplaceNode(NodeId id, XdmNode replacement)
+    {
+        ArgumentNullException.ThrowIfNull(replacement);
+        if (replacement.Id != id)
+            throw new ArgumentException(
+                $"replacement.Id ({replacement.Id}) must equal the id being replaced ({id}).",
+                nameof(replacement));
+        if (!_byId.ContainsKey(id))
+            throw new InvalidOperationException($"No node with id {id} in this document.");
+        _byId[id] = replacement;
+    }
+
     /// <summary>Serializes the XDM document back to an XML string.</summary>
     internal string SerializeToString()
     {
