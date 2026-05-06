@@ -68,22 +68,33 @@ build. Each is worth remembering as a foundation invariant going forward.
 7. **Document tree label was the full `file://` URI** — caused horizontal overflow
    in the tree pane. `XmlTreeNode.DocumentLabel` now extracts just the filename.
 8. **Right pane was single-line `utf-16`-declared XML on Open** — the underlying
-   `XmlSerializer` produces unindented, encoding-mangled output. v0.1 sidesteps by
-   reading the source file's raw bytes for display; the round-trip behavior is a
-   real v0.2 work item.
+   `XmlSerializer` produced unindented, encoding-mangled output. v0.1 originally
+   sidestepped by reading the source file's raw bytes for display. **Plan 7
+   (2026-05-06) fixed the underlying serializer** in `PhoenixmlDb.Core 1.0.30`
+   (UTF-8-reporting `StringWriter`, indent default flipped to `true`); the
+   workaround was removed and the text view shows the serializer's output again.
+   Save / Save As round-trip cleanly through XDM.
 
 ## Rough-edges log (v0.2 backlog)
 
 Things that are deliberately not addressed in v0.1, ordered by friction observed.
 
+### Resolved 2026-05-06 (Plan 7)
+
+- [x] ~~**`XmlSerializer` produces single-line, `utf-16`-declared XML.**~~ Fixed in
+  `PhoenixmlDb.Core 1.0.30` via `Utf8StringWriter` (declares UTF-8 instead of
+  UTF-16) plus flipping the `indent` constructor parameter default from `false`
+  to `true`. The editor's source-file-text workaround is gone; the text view is
+  the serializer's output again, and Save / Save As round-trip produces clean
+  indented UTF-8 XML.
+
 ### High friction (felt while using it for the first time)
 
-- [ ] **`XmlSerializer` produces single-line, `utf-16`-declared XML.** Currently
-  hidden by the editor displaying the source file's raw text instead of the
-  serializer output. As soon as edits land, this becomes painful — Save would
-  produce mangled XML. Needs proper `XmlWriterSettings` (Indent=true, OmitXmlDeclaration
-  optional, Encoding=UTF-8) wired into `PhoenixmlDb.Core`'s serializer or worked
-  around in Editor.Xml.
+- [ ] **Edits in the text view don't sync back to the tree.** TextBox accepts
+  typing but no command flows the change into XDM, so the tree stays stale.
+  `IUndoStack` is plumbed through `Document` but no XML edit commands exist yet.
+  **Now the v0.2 headline feature** (was #2; promoted to #1 with the serializer
+  fix shipped).
 - [ ] **Tree expand chevrons require precise clicking.** Avalonia default UX. v0.2
   should either (a) make the whole row toggle expansion on click, or (b) auto-expand
   more aggressively (current: 2 levels), or (c) increase chevron hit-target.
@@ -91,10 +102,6 @@ Things that are deliberately not addressed in v0.1, ordered by friction observed
   bar is easy to miss on dark theme. Consider a `Phoenixml.Color.Border` accent
   on hover, or a slightly brighter resting-state color, or a 1-dip light-tone
   highlight in the middle of the splitter for visual cue.
-- [ ] **Edits in the text view don't sync back to the tree.** TextBox accepts
-  typing but no command flows the change into XDM, so the tree stays stale.
-  `IUndoStack` is plumbed through `Document` but no XML edit commands exist yet.
-  Real editing is the v0.2 headline feature.
 
 ### Medium friction
 
