@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Layout;
+using Phoenixml.Editor.Menus;
 using Phoenixml.Editor.ViewModels;
 using Phoenixml.Platform.Editor.Xml;
 using Phoenixml.Platform.Editing;
@@ -40,9 +41,11 @@ public sealed class EditorMainWindow
             Pane2Content = _textView,
         };
 
-        // Menu will be wired in Task 4; for now wrap the split in a DockPanel so
-        // Task 4 can simply add the menu at the top without restructuring.
         _rootPanel = new DockPanel { LastChildFill = true };
+
+        var menu = FileMenu.Build(this);
+        DockPanel.SetDock(menu, Dock.Top);
+        _rootPanel.Children.Add(menu);
         _rootPanel.Children.Add(split);
 
         _window.SetContent(_rootPanel);
@@ -65,9 +68,6 @@ public sealed class EditorMainWindow
 
     /// <summary>Gets the editor view-model state (active document, etc.).</summary>
     internal EditorState State => _state;
-
-    /// <summary>Gets the root layout panel so the File menu can be docked to the top.</summary>
-    internal DockPanel RootPanel => _rootPanel;
 
     private void OnActiveDocumentChanged(XmlDocument? doc)
     {
