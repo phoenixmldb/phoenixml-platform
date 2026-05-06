@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Phoenixml.Editor</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <ApplicationIcon></ApplicationIcon>
+    <Description>Phoenixml.Editor — XML/XSD authoring app. v0.1 minimum-viable runnable.</Description>
+    <!-- CA1515: Avalonia requires App to be public (XAML loader resolves it by name at runtime).
+         NU1903: Tmds.DBus.Protocol 0.20.0 high-severity advisory — transitive via Avalonia.Desktop
+         on Linux. Not shipped; suppress rather than pin a patched transitive. -->
+    <NoWarn>$(NoWarn);CA1515;NU1903</NoWarn>
+    <NuGetAuditSuppress>https://github.com/advisories/GHSA-xrw6-gwf8-vvr9</NuGetAuditSuppress>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.Diagnostics" Condition="'$(Configuration)' == 'Debug'" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Phoenixml.Platform/Phoenixml.Platform.csproj" />
+    <ProjectReference Include="../Phoenixml.Platform.Editor.Xml/Phoenixml.Platform.Editor.Xml.csproj" />
+  </ItemGroup>
+</Project>

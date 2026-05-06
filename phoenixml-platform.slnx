@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Phoenixml.Platform/Phoenixml.Platform.csproj" />
     <Project Path="src/Phoenixml.Platform.Editor.Xml/Phoenixml.Platform.Editor.Xml.csproj" />
+    <Project Path="src/Phoenixml.Editor/Phoenixml.Editor.csproj" />
   </Folder>
   <Folder Name="/spike/">
     <Project Path="spike/Phoenixml.Platform.ChromeSpike/Phoenixml.Platform.ChromeSpike.csproj" />
