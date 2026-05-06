@@ -32,7 +32,7 @@ public sealed class XmlTreeNode : ITreeNode
     /// <inheritdoc/>
     public string Label => XdmNode switch
     {
-        XdmDocument doc => doc.DocumentUri ?? "(document)",
+        XdmDocument doc => DocumentLabel(doc),
         XdmElement el => $"<{el.LocalName}>",
         XdmAttribute a => $"@{a.LocalName}",
         XdmText t => $"\"{Truncate(t.Value, 40)}\"",
@@ -40,6 +40,20 @@ public sealed class XmlTreeNode : ITreeNode
         XdmProcessingInstruction pi => $"<?{pi.Target} ... ?>",
         _ => XdmNode.NodeKind.ToString()
     };
+
+    private static string DocumentLabel(XdmDocument doc)
+    {
+        // Show just the filename, not the full file:// URI — full URIs cause horizontal
+        // overflow in narrow tree panes. The owning document's DisplayName would be
+        // ideal, but XdmDocument doesn't carry it; fall back to the URI's last segment.
+        if (string.IsNullOrEmpty(doc.DocumentUri)) return "(document)";
+        if (Uri.TryCreate(doc.DocumentUri, UriKind.Absolute, out var u))
+        {
+            var name = System.IO.Path.GetFileName(u.LocalPath);
+            if (!string.IsNullOrEmpty(name)) return name;
+        }
+        return doc.DocumentUri;
+    }
 
     /// <inheritdoc/>
     public string? IconKey => XdmNode.NodeKind switch

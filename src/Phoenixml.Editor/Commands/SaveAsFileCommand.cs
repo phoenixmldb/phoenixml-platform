@@ -25,12 +25,12 @@ internal static class SaveAsFileCommand
             Title = "Save XML file",
             DefaultExtension = ".xml",
             FileTypeChoices = s_xmlFileTypes,
-        }).ConfigureAwait(false);
+        });
 
         if (file is null) return;
         var path = file.TryGetLocalPath();
         if (path is null) return;
 
-        await doc.SaveAsAsync(new Uri(path), ct).ConfigureAwait(false);
+        await doc.SaveAsAsync(new Uri(path), ct);
     }
 }

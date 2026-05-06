@@ -8,8 +8,12 @@
     <Description>Phoenixml.Editor — XML/XSD authoring app. v0.1 minimum-viable runnable.</Description>
     <!-- CA1515: Avalonia requires App to be public (XAML loader resolves it by name at runtime).
          NU1903: Tmds.DBus.Protocol 0.20.0 high-severity advisory — transitive via Avalonia.Desktop
-         on Linux. Not shipped; suppress rather than pin a patched transitive. -->
-    <NoWarn>$(NoWarn);CA1515;NU1903</NoWarn>
+         on Linux. Not shipped; suppress rather than pin a patched transitive.
+         CA2007: library-code advice that's wrong for UI apps. Awaits in commands MUST resume
+         on the captured Avalonia UI SynchronizationContext so continuations can mutate the
+         view tree. Following CA2007 here is what caused the first run's "Call from invalid
+         thread" crash — the suppression is deliberate. -->
+    <NoWarn>$(NoWarn);CA1515;NU1903;CA2007</NoWarn>
     <NuGetAuditSuppress>https://github.com/advisories/GHSA-xrw6-gwf8-vvr9</NuGetAuditSuppress>
   </PropertyGroup>
   <ItemGroup>

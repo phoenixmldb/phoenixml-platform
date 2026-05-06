@@ -12,15 +12,15 @@ internal static class FileMenu
 
         var openItem = new MenuItem { Header = "_Open..." };
         openItem.Click += async (_, _) =>
-            await OpenFileCommand.ExecuteAsync(window, CancellationToken.None).ConfigureAwait(false);
+            await OpenFileCommand.ExecuteAsync(window, CancellationToken.None);
 
         var saveItem = new MenuItem { Header = "_Save" };
         saveItem.Click += async (_, _) =>
-            await SaveFileCommand.ExecuteAsync(window, CancellationToken.None).ConfigureAwait(false);
+            await SaveFileCommand.ExecuteAsync(window, CancellationToken.None);
 
         var saveAsItem = new MenuItem { Header = "Save _As..." };
         saveAsItem.Click += async (_, _) =>
-            await SaveAsFileCommand.ExecuteAsync(window, CancellationToken.None).ConfigureAwait(false);
+            await SaveAsFileCommand.ExecuteAsync(window, CancellationToken.None);
 
         var exitItem = new MenuItem { Header = "E_xit" };
         exitItem.Click += (_, _) => ExitCommand.Execute(window.Window);

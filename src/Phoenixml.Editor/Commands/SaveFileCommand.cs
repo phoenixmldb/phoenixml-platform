@@ -11,10 +11,10 @@ internal static class SaveFileCommand
 
         if (doc.Source is null)
         {
-            await SaveAsFileCommand.ExecuteAsync(window, ct).ConfigureAwait(false);
+            await SaveAsFileCommand.ExecuteAsync(window, ct);
             return;
         }
 
-        await doc.SaveAsync(ct).ConfigureAwait(false);
+        await doc.SaveAsync(ct);
     }
 }

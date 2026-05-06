@@ -19,19 +19,22 @@ internal static class OpenFileCommand
         var topLevel = TopLevel.GetTopLevel(window.Window);
         if (topLevel is null) return;
 
+        // No ConfigureAwait(false) — this command mutates UI state (sets ActiveDocument
+        // which synchronously refreshes views), so the awaits must resume on the UI
+        // thread. Avalonia uses its own SynchronizationContext to marshal back.
         var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "Open XML file",
             AllowMultiple = false,
             FileTypeFilter = s_xmlFileTypes,
-        }).ConfigureAwait(false);
+        });
 
         if (files is null || files.Count == 0) return;
 
         var path = files[0].TryGetLocalPath();
         if (path is null) return;
 
-        var doc = await XmlDocument.LoadAsync(path, ct).ConfigureAwait(false);
+        var doc = await XmlDocument.LoadAsync(path, ct);
         window.State.ActiveDocument = doc;
     }
 }

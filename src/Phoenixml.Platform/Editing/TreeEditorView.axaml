@@ -6,6 +6,13 @@
               Background="{DynamicResource Phoenixml.Color.Surface.Base}"
               SelectionChanged="TreeHost_SelectionChanged"
               DoubleTapped="TreeHost_DoubleTapped">
+        <TreeView.Styles>
+            <!-- Bind TreeViewItem.IsExpanded to the view-model's IsExpanded so we can
+                 auto-expand the root level (and persist user expansion state across refreshes). -->
+            <Style Selector="TreeViewItem">
+                <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+            </Style>
+        </TreeView.Styles>
         <TreeView.ItemTemplate>
             <TreeDataTemplate DataType="{x:Type local:TreeNodeViewModel}"
                               ItemsSource="{Binding Children}">

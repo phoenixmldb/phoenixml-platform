@@ -86,8 +86,18 @@ public sealed partial class TreeEditorView : UserControl
             return;
         }
 
+        // Auto-expand the root level so users see the document's top-level structure
+        // immediately on Open without hunting for the small expand chevron. Deeper nodes
+        // are still click-to-expand. (One root node almost always has just one or two
+        // children — expanding one more level too keeps the UX informative.)
         host.ItemsSource = _provider.Roots
-            .Select(n => new TreeNodeViewModel(n, _provider))
+            .Select(n =>
+            {
+                var vm = new TreeNodeViewModel(n, _provider) { IsExpanded = true };
+                foreach (var child in vm.Children)
+                    child.IsExpanded = true;
+                return vm;
+            })
             .ToList();
     }
 
@@ -123,6 +133,10 @@ internal sealed class TreeNodeViewModel
 
     /// <summary>Display label (forwarded from <see cref="Node"/>).</summary>
     public string Label => Node.Label;
+
+    /// <summary>Whether the corresponding TreeViewItem should render expanded.
+    /// Bound two-way via the TreeView's IsExpanded style binding.</summary>
+    public bool IsExpanded { get; set; }
 
     /// <summary>
     /// Lazily-loaded children. On first access, calls <see cref="ITreeNodeProvider.GetChildren"/>

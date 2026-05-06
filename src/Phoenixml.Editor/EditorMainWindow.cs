@@ -50,15 +50,22 @@ public sealed class EditorMainWindow
 
         _window.SetContent(_rootPanel);
 
-        var docSegment = new StatusBarSegment(
-            Id: "active-document",
-            Label: "(no document)",
-            Order: 0);
-        _window.SetStatusSegments(new[] { docSegment }, EmptyServiceProvider.Instance);
+        UpdateStatusBar();
 
         _window.SetTitle("Phoenixml Editor");
 
         _state.ActiveDocumentChanged += OnActiveDocumentChanged;
+    }
+
+    private void UpdateStatusBar()
+    {
+        var doc = _state.ActiveDocument;
+        var label = doc is null ? "(no document)" : $"{doc.DisplayName}";
+        var segment = new StatusBarSegment(
+            Id: "active-document",
+            Label: label,
+            Order: 0);
+        _window.SetStatusSegments(new[] { segment }, EmptyServiceProvider.Instance);
     }
 
     private readonly DockPanel _rootPanel;
@@ -76,12 +83,33 @@ public sealed class EditorMainWindow
             _treeView.SetProvider(null);
             _textView.Text = string.Empty;
             _window.SetTitle("Phoenixml Editor");
+            UpdateStatusBar();
             return;
         }
 
         _treeView.SetProvider(doc.TreeNodes);
-        _textView.Text = doc.SerializeToString();
+
+        // v0.1: show the source file's raw text as opened, not the serializer's
+        // round-trip output. The current serializer produces single-line UTF-16-declared
+        // XML — known v0.2 work item. For now the text view is a faithful mirror of
+        // what's on disk (read-only-feeling for the user, even though TextBox lets them type).
+        if (doc.Source is { IsFile: true } src && System.IO.File.Exists(src.LocalPath))
+        {
+            // Catch the specific I/O exceptions that File.ReadAllText documents — broad
+            // catch is intentional fallback behavior but CA1031 wants the failure modes
+            // enumerated, so list the realistic ones rather than catch System.Exception.
+            try { _textView.Text = System.IO.File.ReadAllText(src.LocalPath); }
+            catch (System.IO.IOException) { _textView.Text = doc.SerializeToString(); }
+            catch (UnauthorizedAccessException) { _textView.Text = doc.SerializeToString(); }
+            catch (System.Security.SecurityException) { _textView.Text = doc.SerializeToString(); }
+        }
+        else
+        {
+            _textView.Text = doc.SerializeToString();
+        }
+
         _window.SetTitle($"Phoenixml Editor — {doc.DisplayName}");
+        UpdateStatusBar();
     }
 }
 
