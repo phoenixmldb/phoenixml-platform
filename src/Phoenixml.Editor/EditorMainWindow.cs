@@ -24,6 +24,7 @@ public sealed class EditorMainWindow
     private readonly EditorState _state = new();
     private readonly TreeEditorView _treeView;
     private readonly TextEditorView _textView;
+    private Phoenixml.Platform.Abstractions.Documents.IDocument? _subscribedDocument;
 
     /// <summary>Initializes a new <see cref="EditorMainWindow"/>.</summary>
     public EditorMainWindow()
@@ -78,6 +79,11 @@ public sealed class EditorMainWindow
 
     private void OnActiveDocumentChanged(XmlDocument? doc)
     {
+        // Unsubscribe from any previously active document.
+        if (_subscribedDocument is not null)
+            _subscribedDocument.Changed -= OnSubscribedDocumentChanged;
+        _subscribedDocument = doc;
+
         if (doc is null)
         {
             _treeView.SetProvider(null);
@@ -92,6 +98,19 @@ public sealed class EditorMainWindow
 
         _window.SetTitle($"Phoenixml Editor — {doc.DisplayName}");
         UpdateStatusBar();
+
+        doc.Changed += OnSubscribedDocumentChanged;
+    }
+
+    private void OnSubscribedDocumentChanged(Phoenixml.Platform.Abstractions.Documents.DocumentChange change)
+    {
+        // Rebuild the text view's serialized output after each edit. The tree view refreshes
+        // via XmlTreeNodeProvider.Changed (it subscribes to the same Document.Changed).
+        if (_state.ActiveDocument is XmlDocument doc)
+        {
+            _textView.Text = doc.SerializeToString();
+            UpdateStatusBar();
+        }
     }
 }
 

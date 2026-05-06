@@ -2,10 +2,13 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using PhoenixmlDb.Core;
 using PhoenixmlDb.Xdm.Nodes;
 using Phoenixml.Platform.Editor.Xml;
+using Phoenixml.Platform.Editor.Xml.Editing;
 using Phoenixml.Platform.Editor.Xml.Tree;
 using Xunit;
+using PlatformDocumentId = Phoenixml.Platform.Abstractions.Documents.DocumentId;
 
 namespace Phoenixml.Platform.Editor.Xml.Tests.Tree;
 
@@ -128,5 +131,32 @@ public class XmlTreeNodeProviderTests
 
         var leafNode = provider.GetChildren(rootElemNode)[0];
         Assert.False(leafNode.HasChildren);
+    }
+
+    [Fact]
+    public void ChangedEventFiresWhenRenameCommandExecutesViaUndoStack()
+    {
+        // Arrange: build doc without a file path (no async needed)
+        var (result, nsTable) = XmlDocument.ParseXml(SimpleXml);
+        var doc = new XmlDocument(
+            PlatformDocumentId.New(),
+            source: null,
+            "test.xml",
+            result,
+            nsTable);
+
+        var provider = doc.TreeNodes;
+
+        var firedCount = 0;
+        provider.Changed += () => firedCount++;
+
+        var rootId = result.Document.DocumentElement!.Value;
+        var cmd = new RenameElementCommand(doc, rootId, "renamed");
+
+        // Act
+        doc.Undo.Execute(cmd);
+
+        // Assert: Changed fired once
+        Assert.Equal(1, firedCount);
     }
 }

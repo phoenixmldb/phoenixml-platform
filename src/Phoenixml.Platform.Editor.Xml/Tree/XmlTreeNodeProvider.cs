@@ -21,6 +21,7 @@ public sealed class XmlTreeNodeProvider : ITreeNodeProvider
     {
         ArgumentNullException.ThrowIfNull(document);
         _document = document;
+        _document.Changed += OnDocumentChanged;
     }
 
     /// <inheritdoc/>
@@ -42,13 +43,14 @@ public sealed class XmlTreeNodeProvider : ITreeNodeProvider
     }
 
     /// <inheritdoc/>
-    // Raised when the underlying document mutates. Mutation isn't wired in v0.1.0 so
-    // Changed never fires; consumers can subscribe today and benefit when edits land later.
+    // Raised when the underlying document mutates. Fires on every Document.Changed event
+    // so TreeEditorView can rebuild the tree in response to edits.
 #pragma warning disable CA1003 // Use generic event handler instances — intentional Action pattern, matches ITreeNodeProvider spec
-#pragma warning disable CS0067  // Event never used — interface requirement; fires when mutation lands in a later plan
     public event Action? Changed;
-#pragma warning restore CS0067
 #pragma warning restore CA1003
+
+    private void OnDocumentChanged(Phoenixml.Platform.Abstractions.Documents.DocumentChange change) =>
+        Changed?.Invoke();
 
     private List<ITreeNode> GetDocumentChildren(XdmDocument doc)
     {
