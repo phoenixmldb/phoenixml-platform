@@ -60,6 +60,14 @@ public sealed partial class NodeListView : UserControl
     /// The first argument is the node being renamed; the second is the new label text.
     /// </summary>
     public event Action<ITreeNode, string>? NodeRenameRequested;
+
+    /// <summary>
+    /// Raised when the user commits a value-column inline edit (Enter or LostFocus with a changed value).
+    /// The first argument is the node whose value should change; the second is the new value text.
+    /// The host is responsible for routing to the appropriate vocabulary command (e.g.
+    /// SetAttributeValueCommand or SetTextContentCommand for XML).
+    /// </summary>
+    public event Action<ITreeNode, string>? NodeValueChangeRequested;
 #pragma warning restore CA1003
 
     /// <summary>
@@ -215,6 +223,49 @@ public sealed partial class NodeListView : UserControl
         if (string.IsNullOrEmpty(trimmed) || trimmed == row.Label) return;
         NodeRenameRequested?.Invoke(row.Node, trimmed);
     }
+
+    private void ValueDisplay_Tapped(object? sender, Avalonia.Input.TappedEventArgs e)
+    {
+        if (sender is TextBlock tb && tb.Tag is NodeRowViewModel row)
+        {
+            // Initialize the edit field with the current value so the user edits in place,
+            // not a blank field. Mirror the F2 name-edit pattern.
+            row.EditingValue = row.Value;
+            row.IsValueEditing = true;
+            e.Handled = true;
+        }
+    }
+
+    private void ValueBox_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox tb || tb.DataContext is not NodeRowViewModel row) return;
+        if (e.Key == Key.Enter)
+        {
+            CommitValueEdit(row, tb.Text ?? string.Empty);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            row.IsValueEditing = false;
+            e.Handled = true;
+        }
+    }
+
+    private void ValueBox_LostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox tb && tb.DataContext is NodeRowViewModel row && row.IsValueEditing)
+            CommitValueEdit(row, tb.Text ?? string.Empty);
+    }
+
+    private void CommitValueEdit(NodeRowViewModel row, string newValue)
+    {
+        row.IsValueEditing = false;
+        // No-op when the value is unchanged — avoids stamping a redundant undo entry just because
+        // the user clicked into the cell and clicked away. (Empty-string values ARE meaningful
+        // for attributes, so we compare against the current Value rather than checking for empty.)
+        if (newValue == row.Value) return;
+        NodeValueChangeRequested?.Invoke(row.Node, newValue);
+    }
 }
 
 /// <summary>
@@ -297,6 +348,31 @@ public sealed class NodeRowViewModel : INotifyPropertyChanged
             _editingText = value;
             OnPropertyChanged();
         }
+    }
+
+    private bool _isValueEditing;
+
+    /// <summary>
+    /// Whether the value column is in inline-edit mode (TextBox visible, TextBlock hidden).
+    /// Set to true when the user single-clicks the value cell; cleared on Enter, Escape, or LostFocus.
+    /// Independent of <see cref="IsEditing"/> (which controls the name column).
+    /// </summary>
+    public bool IsValueEditing
+    {
+        get => _isValueEditing;
+        set { if (_isValueEditing == value) return; _isValueEditing = value; OnPropertyChanged(); }
+    }
+
+    private string _editingValue = string.Empty;
+
+    /// <summary>
+    /// The text shown in the value-column inline edit TextBox. Initialized to <see cref="Value"/>
+    /// when the user clicks into the value cell so they edit the current value, not a blank field.
+    /// </summary>
+    public string EditingValue
+    {
+        get => _editingValue;
+        set { if (_editingValue == value) return; _editingValue = value; OnPropertyChanged(); }
     }
 
     /// <summary>Initializes a new <see cref="NodeRowViewModel"/> for the given node and depth.</summary>

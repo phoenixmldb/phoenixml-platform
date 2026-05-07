@@ -39,13 +39,25 @@
                     <!-- Vertical divider between name and value columns -->
                     <Border Grid.Column="1"
                             Background="{DynamicResource Phoenixml.Color.Border}" />
-                    <!-- Value column -->
-                    <TextBlock Grid.Column="2"
-                               Text="{Binding Value}"
-                               Foreground="{DynamicResource Phoenixml.Color.Content.Primary}"
-                               VerticalAlignment="Center"
-                               Margin="8,0,0,0"
-                               TextTrimming="CharacterEllipsis" />
+                    <!-- Value column: TextBlock for display, TextBox for inline edit. Single-click on the
+                         TextBlock enters value-editing mode. Independent from name-column edit (F2) so both
+                         gestures stay discoverable. -->
+                    <Grid Grid.Column="2">
+                        <TextBlock Text="{Binding Value}"
+                                   IsVisible="{Binding !IsValueEditing}"
+                                   Foreground="{DynamicResource Phoenixml.Color.Content.Primary}"
+                                   VerticalAlignment="Center"
+                                   Margin="8,0,0,0"
+                                   TextTrimming="CharacterEllipsis"
+                                   Tapped="ValueDisplay_Tapped"
+                                   Tag="{Binding}" />
+                        <TextBox Text="{Binding EditingValue, Mode=TwoWay}"
+                                 IsVisible="{Binding IsValueEditing}"
+                                 KeyDown="ValueBox_KeyDown"
+                                 LostFocus="ValueBox_LostFocus"
+                                 Margin="8,0,0,0"
+                                 Padding="2,0" />
+                    </Grid>
                 </Grid>
             </DataTemplate>
         </ListBox.ItemTemplate>
