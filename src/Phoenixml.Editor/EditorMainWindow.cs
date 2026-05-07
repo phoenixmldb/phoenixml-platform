@@ -1,9 +1,9 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Phoenixml.Editor.Commands;
 using Phoenixml.Editor.Menus;
 using Phoenixml.Editor.Settings;
-using Phoenixml.Editor.Tabs;
 using Phoenixml.Editor.ViewModels;
 using Phoenixml.Platform.Abstractions.Documents;
 using Phoenixml.Platform.Editor.Xml;
@@ -136,13 +136,32 @@ public sealed class EditorMainWindow
         DockPanel.SetDock(toolbar, Dock.Top);
         var addressBar = new Phoenixml.Editor.Toolbar.EditorAddressBar(this);
         DockPanel.SetDock(addressBar, Dock.Top);
-        var tabStrip = new EditorTabStrip(_state);
-        DockPanel.SetDock(tabStrip, Dock.Top);
-        // Order: menu, toolbar, addressBar, tabStrip, nodeList (LastChildFill takes the rest).
+        var explorer = new Phoenixml.Editor.Explorer.EditorExplorer(this) { Width = 250 };
+        var collapseButton = new Button
+        {
+            Content = "◀",
+            Width = 22,
+            Padding = new Thickness(0),
+            Background = Avalonia.Media.Brushes.Transparent,
+            Foreground = Avalonia.Media.Brushes.White,
+        };
+        ToolTip.SetTip(collapseButton, "Toggle file explorer");
+        var explorerColumn = new DockPanel { LastChildFill = true };
+        DockPanel.SetDock(collapseButton, Dock.Right);
+        explorerColumn.Children.Add(collapseButton);
+        explorerColumn.Children.Add(explorer);
+        DockPanel.SetDock(explorerColumn, Dock.Left);
+        collapseButton.Click += (_, _) =>
+        {
+            explorer.IsVisible = !explorer.IsVisible;
+            collapseButton.Content = explorer.IsVisible ? "◀" : "▶";
+        };
+
+        // Order: menu, toolbar, addressBar (top); explorerColumn (left); nodeList fills.
         _rootPanel.Children.Add(menu);
         _rootPanel.Children.Add(toolbar);
         _rootPanel.Children.Add(addressBar);
-        _rootPanel.Children.Add(tabStrip);
+        _rootPanel.Children.Add(explorerColumn);
         _rootPanel.Children.Add(_nodeList);
 
         _window.SetContent(_rootPanel);
