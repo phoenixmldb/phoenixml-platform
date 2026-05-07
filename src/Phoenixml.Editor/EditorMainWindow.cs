@@ -56,6 +56,27 @@ public sealed class EditorMainWindow
                 doc.Undo.Execute(command);
         };
 
+        // Wire value-column inline edit — routes by node kind.
+        _nodeList.NodeValueChangeRequested += (node, newValue) =>
+        {
+            if (_state.ActiveDocument is not XmlDocument doc) return;
+            if (node is not XmlTreeNode xmlNode) return;
+
+            IEditorCommand? command = xmlNode.XdmNode switch
+            {
+                XdmAttribute attr => new SetAttributeValueCommand(doc, attr.Id, newValue),
+                XdmElement el when IsTextOnlyElement(el, doc) =>
+                    new SetTextContentCommand(doc, el.Id, newValue),
+                // Container / mixed / empty element → silently ignore. The user sees the
+                // pre-edit value reappear when the row rebuilds. Plan 10 will add insert
+                // commands for the empty-element case.
+                _ => null,
+            };
+
+            if (command is not null)
+                doc.Undo.Execute(command);
+        };
+
         _rootPanel = new DockPanel { LastChildFill = true };
 
         var menu = new Menu
@@ -169,6 +190,19 @@ public sealed class EditorMainWindow
         // The NodeListView refreshes itself via XmlTreeNodeProvider.Changed (which fires on
         // Document.Changed). Only the status bar needs an explicit update here.
         UpdateStatusBar();
+    }
+
+    // Predicate matching SetTextContentCommand's "text-only element" precondition: the element
+    // has at least one child and no element children. Used to decide whether a value-column
+    // edit should be routed to SetTextContentCommand or silently ignored.
+    private static bool IsTextOnlyElement(XdmElement el, XmlDocument doc)
+    {
+        if (el.Children.Count == 0) return false;
+        foreach (var childId in el.Children)
+        {
+            if (doc.Resolve(childId) is XdmElement) return false;
+        }
+        return true;
     }
 }
 
