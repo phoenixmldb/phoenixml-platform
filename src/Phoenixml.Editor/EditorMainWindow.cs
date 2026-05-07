@@ -1,10 +1,14 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
+using Avalonia.Media;
 using Phoenixml.Editor.Commands;
 using Phoenixml.Editor.Menus;
 using Phoenixml.Editor.ViewModels;
+using Phoenixml.Editor.Views;
 using Phoenixml.Platform.Editor.Xml;
+using Phoenixml.Platform.Editor.Xml.Tree;
 using Phoenixml.Platform.Editing;
 using Phoenixml.Platform;
 using Phoenixml.Platform.Shell;
@@ -26,6 +30,7 @@ public sealed class EditorMainWindow
     private readonly EditorState _state = new();
     private readonly TreeEditorView _treeView;
     private readonly TextEditorView _textView;
+    private readonly PropertiesPane _propertiesPane;
     private Phoenixml.Platform.Abstractions.Documents.IDocument? _subscribedDocument;
 
     /// <summary>Initializes a new <see cref="EditorMainWindow"/>.</summary>
@@ -35,13 +40,43 @@ public sealed class EditorMainWindow
 
         _treeView = new TreeEditorView();
         _textView = new TextEditorView { IsReadOnly = false };
+        _propertiesPane = new PropertiesPane();
+
+        // Left pane: tree (star) + separator (1 dip) + properties pane (140 dip).
+        var leftPaneGrid = new Grid
+        {
+            RowDefinitions = new RowDefinitions("*,Auto,140"),
+        };
+
+        var separator = new Border
+        {
+            Height = 1,
+            Background = Application.Current?.TryFindResource("Phoenixml.Color.Border", out var br) == true
+                ? br as IBrush
+                : null,
+        };
+
+        Grid.SetRow(_treeView, 0);
+        Grid.SetRow(separator, 1);
+        Grid.SetRow(_propertiesPane, 2);
+
+        leftPaneGrid.Children.Add(_treeView);
+        leftPaneGrid.Children.Add(separator);
+        leftPaneGrid.Children.Add(_propertiesPane);
 
         var split = new Platform.Shell.SplitView
         {
             Orientation = Orientation.Horizontal,
             Pane1Size = 360,
-            Pane1Content = _treeView,
+            Pane1Content = leftPaneGrid,
             Pane2Content = _textView,
+        };
+
+        // Wire tree selection to the properties pane.
+        _treeView.SelectionChanged += node =>
+        {
+            var doc = _state.ActiveDocument;
+            _propertiesPane.OnSelectionChanged(doc, node as XmlTreeNode);
         };
 
         _rootPanel = new DockPanel { LastChildFill = true };
@@ -117,6 +152,7 @@ public sealed class EditorMainWindow
         {
             _treeView.SetProvider(null);
             _textView.Text = string.Empty;
+            _propertiesPane.OnSelectionChanged(null, null);
             _window.SetTitle("Phoenixml Editor");
             UpdateStatusBar();
             return;
