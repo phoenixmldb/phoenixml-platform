@@ -182,7 +182,7 @@ public sealed class EditorMainWindow
         {
             var doc = await Phoenixml.Platform.Editor.Xml.XmlDocument
                 .LoadAsync(path, CancellationToken.None);
-            _state.ActiveDocument = doc;
+            _state.OpenDocument(doc);
         }
         catch (System.IO.IOException) { /* file gone or locked — silent skip */ }
         catch (UnauthorizedAccessException) { /* permission — silent skip */ }

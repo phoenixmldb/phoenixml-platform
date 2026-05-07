@@ -35,6 +35,6 @@ internal static class OpenFileCommand
         if (path is null) return;
 
         var doc = await XmlDocument.LoadAsync(path, ct);
-        window.State.ActiveDocument = doc;
+        window.State.OpenDocument(doc);
     }
 }
