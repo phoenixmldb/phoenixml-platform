@@ -50,6 +50,9 @@ public sealed class SetTextContentCommand : PlatformEditorCommand
     public string Description => $"Set text to '{Truncate(_newText, 30)}'";
 
     /// <inheritdoc/>
+    public IEnumerable<NodeId> ReferencedNodeIds => Array.Empty<NodeId>();
+
+    /// <inheritdoc/>
     public void Apply(PlatformDocument document)
     {
         var element = _document.Resolve(_elementId) as XdmElement

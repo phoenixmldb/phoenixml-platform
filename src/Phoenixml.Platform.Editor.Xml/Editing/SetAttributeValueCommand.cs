@@ -37,6 +37,9 @@ public sealed class SetAttributeValueCommand : PlatformEditorCommand
     public string Description => $"Set attribute value to '{Truncate(_newValue, 30)}'";
 
     /// <inheritdoc/>
+    public IEnumerable<NodeId> ReferencedNodeIds => Array.Empty<NodeId>();
+
+    /// <inheritdoc/>
     public void Apply(PlatformDocument document)
     {
         var current = _document.Resolve(_attributeId) as XdmAttribute

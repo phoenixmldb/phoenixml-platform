@@ -36,6 +36,9 @@ public sealed class RenameElementCommand : PlatformEditorCommand
     public string Description => $"Rename element to '{_newName}'";
 
     /// <inheritdoc/>
+    public IEnumerable<NodeId> ReferencedNodeIds => Array.Empty<NodeId>();
+
+    /// <inheritdoc/>
     public void Apply(PlatformDocument document)
     {
         var current = _document.Resolve(_elementId) as XdmElement

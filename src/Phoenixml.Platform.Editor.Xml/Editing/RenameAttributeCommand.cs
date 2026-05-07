@@ -37,6 +37,9 @@ public sealed class RenameAttributeCommand : PlatformEditorCommand
     public string Description => $"Rename attribute to '@{_newName}'";
 
     /// <inheritdoc/>
+    public IEnumerable<NodeId> ReferencedNodeIds => Array.Empty<NodeId>();
+
+    /// <inheritdoc/>
     public void Apply(PlatformDocument document)
     {
         var current = _document.Resolve(_attributeId) as XdmAttribute
