@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 using Phoenixml.Platform.Abstractions.Editing;
 
 namespace Phoenixml.Platform.Editing;
@@ -126,7 +127,16 @@ public sealed partial class NodeListView : UserControl
         }
     }
 
-    private void OnProviderChanged() => Rebuild();
+    private void OnProviderChanged()
+    {
+        // Document.Changed can fire on a worker thread (e.g. SaveAsAsync's MarkClean
+        // resumes off the UI thread after file I/O). Rebuild touches Avalonia controls
+        // (FindControl, ListBox.ItemsSource) which require the UI thread.
+        if (Dispatcher.UIThread.CheckAccess())
+            Rebuild();
+        else
+            Dispatcher.UIThread.Post(Rebuild);
+    }
 
     private void Rebuild()
     {
