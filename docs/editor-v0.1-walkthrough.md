@@ -79,6 +79,17 @@ build. Each is worth remembering as a foundation invariant going forward.
 
 Things that are deliberately not addressed in v0.1, ordered by friction observed.
 
+### Resolved 2026-05-07 (Plan 8 + UX iterations)
+
+- [x] ~~**Edits in the text view don't sync back to the tree.**~~ The text view is gone in
+  v0.2. Replaced by an XmlNotepad-style dual-pane `NodeListView` (tree of names + aligned
+  value column). F2 in the name column issues `RenameElementCommand` or
+  `RenameAttributeCommand` through the document's `IUndoStack`. Ctrl+Z/Y undo/redo work
+  end-to-end. Value-column editing (typing into a value to invoke
+  `SetAttributeValueCommand` / `SetTextContentCommand`) is the v0.3 headline feature.
+  See [`editor-v0.2-walkthrough.md`](./editor-v0.2-walkthrough.md) for the full v0.2
+  state and the v0.3 backlog.
+
 ### Resolved 2026-05-06 (Plan 7)
 
 - [x] ~~**`XmlSerializer` produces single-line, `utf-16`-declared XML.**~~ Fixed in
