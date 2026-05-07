@@ -32,10 +32,12 @@ internal static class FileMenu
         var exitItem = new MenuItem { Header = "E_xit" };
         exitItem.Click += (_, _) => ExitCommand.Execute(window.Window);
 
+        var recentItem = RecentFilesMenu.Build(window, window.Settings);
+
         return new MenuItem
         {
             Header = "_File",
-            ItemsSource = new object[] { openItem, saveItem, saveAsItem, new Separator(), exitItem },
+            ItemsSource = new object[] { openItem, recentItem, saveItem, saveAsItem, new Separator(), exitItem },
         };
     }
 }

@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Phoenixml.Editor.Commands;
 using Phoenixml.Editor.Menus;
+using Phoenixml.Editor.Settings;
 using Phoenixml.Editor.Tabs;
 using Phoenixml.Editor.ViewModels;
 using Phoenixml.Platform.Abstractions.Documents;
@@ -32,10 +33,21 @@ public sealed class EditorMainWindow
     private readonly NodeListView _nodeList;
     private IDocument? _subscribedDocument;
 
+    /// <summary>
+    /// Gets the persisted editor settings store. Menus and commands read from and
+    /// record to this store. Loaded asynchronously on construction; the menu rebuilds
+    /// when <see cref="EditorSettingsStore.Changed"/> fires after load completes.
+    /// </summary>
+    internal EditorSettingsStore Settings { get; } = new();
+
     /// <summary>Initializes a new <see cref="EditorMainWindow"/>.</summary>
     public EditorMainWindow()
     {
         _window = new MainWindow();
+
+        // Start loading persisted settings in the background. The Recent Files menu
+        // subscribes to Settings.Changed and will rebuild once the load completes.
+        _ = Settings.LoadAsync(CancellationToken.None);
 
         _nodeList = new NodeListView();
 
