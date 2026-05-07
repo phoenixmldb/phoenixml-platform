@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Phoenixml.Editor.Commands;
 using Phoenixml.Editor.Menus;
+using Phoenixml.Editor.Tabs;
 using Phoenixml.Editor.ViewModels;
 using Phoenixml.Platform.Abstractions.Documents;
 using Phoenixml.Platform.Editor.Xml;
@@ -123,10 +124,13 @@ public sealed class EditorMainWindow
         DockPanel.SetDock(toolbar, Dock.Top);
         var addressBar = new Phoenixml.Editor.Toolbar.EditorAddressBar(this);
         DockPanel.SetDock(addressBar, Dock.Top);
-        // Order: menu, toolbar, addressBar, nodeList (LastChildFill takes the rest).
+        var tabStrip = new EditorTabStrip(_state);
+        DockPanel.SetDock(tabStrip, Dock.Top);
+        // Order: menu, toolbar, addressBar, tabStrip, nodeList (LastChildFill takes the rest).
         _rootPanel.Children.Add(menu);
         _rootPanel.Children.Add(toolbar);
         _rootPanel.Children.Add(addressBar);
+        _rootPanel.Children.Add(tabStrip);
         _rootPanel.Children.Add(_nodeList);
 
         _window.SetContent(_rootPanel);
