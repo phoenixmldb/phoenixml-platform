@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Phoenixml.Platform.Abstractions.Editing;
 
 namespace Phoenixml.Platform.Editing;
@@ -144,6 +145,68 @@ public sealed partial class NodeListView : UserControl
                 return;
             }
         }
+    }
+
+    /// <summary>
+    /// Marks the row with the given <paramref name="id"/> as expanded. Hosts call this before
+    /// inserting a child so the new row becomes visible after the resulting Rebuild. No-op if
+    /// the id is unknown.
+    /// </summary>
+    public void ExpandById(string id)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        _expansionState[id] = true;
+    }
+
+    /// <summary>
+    /// Selects the row with the given <paramref name="id"/> and immediately enters name-edit
+    /// mode (the same state as pressing F2). Focuses the inline TextBox and selects all its
+    /// text so the user can type to replace the placeholder name in one gesture.
+    /// </summary>
+    public void BeginRenameById(string id)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        var host = this.FindControl<ListBox>("RowsHost");
+        if (host is null) return;
+
+        int targetIndex = -1;
+        NodeRowViewModel? targetRow = null;
+        for (int i = 0; i < _flatRows.Count; i++)
+        {
+            if (_flatRows[i].Node.Id == id)
+            {
+                targetIndex = i;
+                targetRow = _flatRows[i];
+                break;
+            }
+        }
+        if (targetRow is null) return;
+
+        host.SelectedIndex = targetIndex;
+        targetRow.EditingText = targetRow.Label;
+        targetRow.IsEditing = true;
+
+        // Container realization is async — the TextBox isn't in the visual tree yet. Defer
+        // focusing until Avalonia has materialized the row, then pick the visible TextBox in
+        // its visual tree (the IsEditing-bound name TextBox) and SelectAll for one-gesture rename.
+        Dispatcher.UIThread.Post(() =>
+        {
+            var container = host.ContainerFromIndex(targetIndex);
+            if (container is null) return;
+            var textBox = FindFirstVisibleTextBox(container);
+            if (textBox is null) return;
+            textBox.Focus();
+            textBox.SelectAll();
+        }, DispatcherPriority.Background);
+    }
+
+    private static TextBox? FindFirstVisibleTextBox(Avalonia.Visual root)
+    {
+        foreach (var child in root.GetVisualDescendants())
+        {
+            if (child is TextBox tb && tb.IsVisible) return tb;
+        }
+        return null;
     }
 
     private void OnProviderChanged()

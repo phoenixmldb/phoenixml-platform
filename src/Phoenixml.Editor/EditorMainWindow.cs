@@ -81,7 +81,11 @@ public sealed class EditorMainWindow
             if (_state.ActiveDocument is not XmlDocument doc) return;
             if (node is not XmlTreeNode xmlNode) return;
             if (xmlNode.XdmNode is not XdmElement el) return;
-            doc.Undo.Execute(new InsertElementCommand(doc, el.Id, "newElement"));
+            // Auto-expand the parent so the new child row is visible.
+            _nodeList.ExpandById(xmlNode.Id);
+            var cmd = new InsertElementCommand(doc, el.Id, "newElement");
+            doc.Undo.Execute(cmd);
+            _nodeList.BeginRenameById(cmd.InsertedId.ToString());
         };
 
         _nodeList.NodeInsertAttributeRequested += node =>
@@ -89,7 +93,10 @@ public sealed class EditorMainWindow
             if (_state.ActiveDocument is not XmlDocument doc) return;
             if (node is not XmlTreeNode xmlNode) return;
             if (xmlNode.XdmNode is not XdmElement el) return;
-            doc.Undo.Execute(new InsertAttributeCommand(doc, el.Id, "newAttr", string.Empty));
+            _nodeList.ExpandById(xmlNode.Id);
+            var cmd = new InsertAttributeCommand(doc, el.Id, "newAttr", string.Empty);
+            doc.Undo.Execute(cmd);
+            _nodeList.BeginRenameById(cmd.InsertedId.ToString());
         };
 
         _nodeList.NodeDeleteRequested += node =>

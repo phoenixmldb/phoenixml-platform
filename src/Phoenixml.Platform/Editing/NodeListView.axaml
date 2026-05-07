@@ -59,9 +59,12 @@
                     <Grid Grid.Column="2">
                         <TextBlock Text="{Binding Value}"
                                    IsVisible="{Binding !IsValueEditing}"
+                                   Background="Transparent"
                                    Foreground="{DynamicResource Phoenixml.Color.Content.Primary}"
-                                   VerticalAlignment="Center"
-                                   Margin="8,0,0,0"
+                                   HorizontalAlignment="Stretch"
+                                   VerticalAlignment="Stretch"
+                                   Padding="8,0,0,0"
+                                   TextAlignment="Left"
                                    TextTrimming="CharacterEllipsis"
                                    Tapped="ValueDisplay_Tapped"
                                    Tag="{Binding}" />

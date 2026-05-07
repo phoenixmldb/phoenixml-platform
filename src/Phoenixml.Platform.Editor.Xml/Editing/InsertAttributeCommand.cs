@@ -48,6 +48,12 @@ public sealed class InsertAttributeCommand : PlatformEditorCommand
     /// <inheritdoc/>
     public string Description => $"Insert @{_localName}";
 
+    /// <summary>
+    /// The <see cref="NodeId"/> of the inserted attribute. Available after the first <see cref="Apply"/>;
+    /// stable across Revert + redo. Hosts use this to select the new row and enter rename mode.
+    /// </summary>
+    public NodeId InsertedId => _insertedId;
+
     /// <inheritdoc/>
     /// <remarks>
     /// Returns the inserted NodeId once allocated so that Compact-on-Save preserves the orphaned
