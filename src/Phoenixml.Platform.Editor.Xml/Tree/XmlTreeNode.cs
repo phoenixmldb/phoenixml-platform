@@ -33,7 +33,7 @@ public sealed class XmlTreeNode : ITreeNode
     public string Label => XdmNode switch
     {
         XdmDocument doc => DocumentLabel(doc),
-        XdmElement el => $"<{el.LocalName}>",
+        XdmElement el => el.LocalName,
         XdmAttribute a => $"@{a.LocalName}",
         XdmText t => $"\"{Truncate(t.Value, 40)}\"",
         XdmComment c => $"<!-- {Truncate(c.Value, 40)} -->",

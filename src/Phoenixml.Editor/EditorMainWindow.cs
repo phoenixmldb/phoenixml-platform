@@ -1,17 +1,16 @@
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Layout;
-using Avalonia.Media;
 using Phoenixml.Editor.Commands;
 using Phoenixml.Editor.Menus;
 using Phoenixml.Editor.ViewModels;
-using Phoenixml.Editor.Views;
+using Phoenixml.Platform.Abstractions.Documents;
 using Phoenixml.Platform.Editor.Xml;
+using Phoenixml.Platform.Editor.Xml.Editing;
 using Phoenixml.Platform.Editor.Xml.Tree;
 using Phoenixml.Platform.Editing;
 using Phoenixml.Platform;
 using Phoenixml.Platform.Shell;
+using PhoenixmlDb.Xdm.Nodes;
 
 namespace Phoenixml.Editor;
 
@@ -30,8 +29,7 @@ public sealed class EditorMainWindow
     private readonly EditorState _state = new();
     private readonly TreeEditorView _treeView;
     private readonly TextEditorView _textView;
-    private readonly PropertiesPane _propertiesPane;
-    private Phoenixml.Platform.Abstractions.Documents.IDocument? _subscribedDocument;
+    private IDocument? _subscribedDocument;
 
     /// <summary>Initializes a new <see cref="EditorMainWindow"/>.</summary>
     public EditorMainWindow()
@@ -39,44 +37,32 @@ public sealed class EditorMainWindow
         _window = new MainWindow();
 
         _treeView = new TreeEditorView();
-        _textView = new TextEditorView { IsReadOnly = false };
-        _propertiesPane = new PropertiesPane();
-
-        // Left pane: tree (star) + separator (1 dip) + properties pane (140 dip).
-        var leftPaneGrid = new Grid
-        {
-            RowDefinitions = new RowDefinitions("*,Auto,140"),
-        };
-
-        var separator = new Border
-        {
-            Height = 1,
-            Background = Application.Current?.TryFindResource("Phoenixml.Color.Border", out var br) == true
-                ? br as IBrush
-                : null,
-        };
-
-        Grid.SetRow(_treeView, 0);
-        Grid.SetRow(separator, 1);
-        Grid.SetRow(_propertiesPane, 2);
-
-        leftPaneGrid.Children.Add(_treeView);
-        leftPaneGrid.Children.Add(separator);
-        leftPaneGrid.Children.Add(_propertiesPane);
+        _textView = new TextEditorView { IsReadOnly = true };
 
         var split = new Platform.Shell.SplitView
         {
-            Orientation = Orientation.Horizontal,
+            Orientation = Avalonia.Layout.Orientation.Horizontal,
             Pane1Size = 360,
-            Pane1Content = leftPaneGrid,
+            Pane1Content = _treeView,
             Pane2Content = _textView,
         };
 
-        // Wire tree selection to the properties pane.
-        _treeView.SelectionChanged += node =>
+        // Wire F2 inline rename — routes to element or attribute command based on node kind.
+        _treeView.NodeRenameRequested += (node, newLabel) =>
         {
-            var doc = _state.ActiveDocument;
-            _propertiesPane.OnSelectionChanged(doc, node as XmlTreeNode);
+            if (_state.ActiveDocument is not XmlDocument doc) return;
+            if (node is not XmlTreeNode xmlNode) return;
+
+            IEditorCommand? command =
+                xmlNode.XdmNode switch
+                {
+                    XdmElement el => new RenameElementCommand(doc, el.Id, newLabel),
+                    XdmAttribute attr => new RenameAttributeCommand(doc, attr.Id, newLabel),
+                    _ => null,
+                };
+
+            if (command is not null)
+                doc.Undo.Execute(command);
         };
 
         _rootPanel = new DockPanel { LastChildFill = true };
@@ -152,7 +138,6 @@ public sealed class EditorMainWindow
         {
             _treeView.SetProvider(null);
             _textView.Text = string.Empty;
-            _propertiesPane.OnSelectionChanged(null, null);
             _window.SetTitle("Phoenixml Editor");
             UpdateStatusBar();
             return;
@@ -167,7 +152,7 @@ public sealed class EditorMainWindow
         doc.Changed += OnSubscribedDocumentChanged;
     }
 
-    private void OnSubscribedDocumentChanged(Phoenixml.Platform.Abstractions.Documents.DocumentChange change)
+    private void OnSubscribedDocumentChanged(DocumentChange change)
     {
         // Rebuild the text view's serialized output after each edit. The tree view refreshes
         // via XmlTreeNodeProvider.Changed (it subscribes to the same Document.Changed).

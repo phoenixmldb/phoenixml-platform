@@ -94,7 +94,7 @@ public class XmlTreeNodeProviderTests
         XmlTreeNode rootElemNode = children
             .OfType<XmlTreeNode>()
             .First(n => n.XdmNode is XdmElement el && el.LocalName == "root");
-        Assert.Equal("<root>", rootElemNode.Label);
+        Assert.Equal("root", rootElemNode.Label);
 
         // Check comment label (may appear before root element at document level)
         var commentNode = children.OfType<XmlTreeNode>().FirstOrDefault(n => n.XdmNode is XdmComment);
