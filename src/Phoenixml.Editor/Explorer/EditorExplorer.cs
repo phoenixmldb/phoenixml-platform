@@ -101,11 +101,19 @@ internal sealed class EditorExplorer : DockPanel
         };
     }
 
+    private string? _currentRoot;
+
     private void OnActiveDocumentChanged(XmlDocument? doc)
     {
         if (doc?.Source?.LocalPath is not string path) return;
         var folder = Path.GetDirectoryName(path);
         if (folder is null) return;
+
+        // Don't disturb the user's chosen root if the newly-opened file is already
+        // under it — most likely they double-clicked it from the tree itself, or
+        // opened a sibling via Recent Files. Re-root only when the file is elsewhere.
+        if (_currentRoot is not null && IsUnderRoot(folder, _currentRoot)) return;
+
         SetRoot(folder);
     }
 
@@ -115,12 +123,22 @@ internal sealed class EditorExplorer : DockPanel
         if (!Directory.Exists(folder))
         {
             _rootLabel.Text = "(folder not found)";
+            _currentRoot = null;
             return;
         }
         _rootLabel.Text = folder;
+        _currentRoot = Path.GetFullPath(folder);
         var rootNode = new ExplorerNode(folder);
         rootNode.EnsureChildrenLoaded();
         _roots.Add(rootNode);
+    }
+
+    private static bool IsUnderRoot(string folder, string root)
+    {
+        var folderFull = Path.GetFullPath(folder).TrimEnd(Path.DirectorySeparatorChar);
+        var rootFull = root.TrimEnd(Path.DirectorySeparatorChar);
+        if (folderFull.Equals(rootFull, StringComparison.Ordinal)) return true;
+        return folderFull.StartsWith(rootFull + Path.DirectorySeparatorChar, StringComparison.Ordinal);
     }
 
     private void OnTreeViewItemExpanded(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
