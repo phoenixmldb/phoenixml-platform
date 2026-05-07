@@ -71,9 +71,22 @@ public sealed class XmlTreeNode : ITreeNode
     public bool HasChildren => XdmNode switch
     {
         XdmDocument doc => doc.DocumentElement is not null,
-        XdmElement el => el.Children.Count > 0 || el.Attributes.Count > 0,
+        // An element has expandable children if it has attributes OR at least one element
+        // child. Text-only leaves (no attrs, no element children, just text) report no
+        // children — their text is shown in the Value column instead, matching XmlNotepad's
+        // ergonomic of "leaf elements look like attributes" in the dual-pane layout.
+        XdmElement el => el.Attributes.Count > 0 || HasElementChildren(el),
         _ => false
     };
+
+    private bool HasElementChildren(XdmElement el)
+    {
+        foreach (var childId in el.Children)
+        {
+            if (_document.Resolve(childId) is XdmElement) return true;
+        }
+        return false;
+    }
 
     /// <inheritdoc/>
     public string Value => XdmNode switch

@@ -8,7 +8,7 @@
              KeyDown="RowsHost_KeyDown">
         <ListBox.ItemTemplate>
             <DataTemplate DataType="{x:Type local:NodeRowViewModel}">
-                <Grid ColumnDefinitions="360,*">
+                <Grid ColumnDefinitions="360,1,*">
                     <!-- Name column: indent spacer + chevron toggle + label (TextBlock/TextBox) -->
                     <StackPanel Grid.Column="0" Orientation="Horizontal">
                         <Border Width="{Binding IndentWidth}" />
@@ -36,8 +36,11 @@
                                      Padding="2,0" />
                         </Grid>
                     </StackPanel>
+                    <!-- Vertical divider between name and value columns -->
+                    <Border Grid.Column="1"
+                            Background="{DynamicResource Phoenixml.Color.Border}" />
                     <!-- Value column -->
-                    <TextBlock Grid.Column="1"
+                    <TextBlock Grid.Column="2"
                                Text="{Binding Value}"
                                Foreground="{DynamicResource Phoenixml.Color.Content.Primary}"
                                VerticalAlignment="Center"

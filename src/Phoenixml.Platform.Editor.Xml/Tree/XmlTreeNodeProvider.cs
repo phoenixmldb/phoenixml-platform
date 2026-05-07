@@ -67,18 +67,41 @@ public sealed class XmlTreeNodeProvider : ITreeNodeProvider
     private List<ITreeNode> GetElementChildren(XdmElement el)
     {
         var children = new List<ITreeNode>();
+
+        // Always include attributes — they always render as separate rows.
         foreach (var attrId in el.Attributes)
         {
             var attr = _document.Resolve(attrId);
             if (attr is not null)
                 children.Add(new XmlTreeNode(_document, attr));
         }
+
+        // Determine if any child is an element. Text-only elements (and ones with only
+        // comments / PIs) collapse their text content into the Value column — we don't
+        // render the text as a separate child row, otherwise the same text appears twice
+        // (once in the parent's value column, once as a child row).
+        // Mixed content (text interleaved with elements) keeps text-node rows so they're
+        // positioned correctly in document order.
+        bool hasElementChildren = false;
         foreach (var childId in el.Children)
         {
-            var child = _document.Resolve(childId);
-            if (child is not null)
-                children.Add(new XmlTreeNode(_document, child));
+            if (_document.Resolve(childId) is XdmElement)
+            {
+                hasElementChildren = true;
+                break;
+            }
         }
+
+        if (hasElementChildren)
+        {
+            foreach (var childId in el.Children)
+            {
+                var child = _document.Resolve(childId);
+                if (child is not null)
+                    children.Add(new XmlTreeNode(_document, child));
+            }
+        }
+
         return children;
     }
 }

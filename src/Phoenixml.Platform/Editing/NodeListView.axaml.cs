@@ -77,19 +77,26 @@ public sealed partial class NodeListView : UserControl
         if (_provider is not null)
             _provider.Changed += OnProviderChanged;
 
-        // Default-expand the first two levels on initial load (mirrors TreeEditorView behavior).
+        // Default-expand the first three levels on initial load. Two levels often shows only
+        // container elements (catalog → category → ...) where the value column stays empty;
+        // a third level reaches leaves with actual values to display.
         _expansionState.Clear();
         if (_provider is not null)
         {
             foreach (var root in _provider.Roots)
-            {
-                _expansionState[root.Id] = true;
-                foreach (var child in _provider.GetChildren(root))
-                    _expansionState[child.Id] = true;
-            }
+                ExpandRecursively(root, depth: 0, maxDepth: 2);
         }
 
         Rebuild();
+    }
+
+    private void ExpandRecursively(ITreeNode node, int depth, int maxDepth)
+    {
+        if (depth > maxDepth) return;
+        _expansionState[node.Id] = true;
+        if (_provider is null) return;
+        foreach (var child in _provider.GetChildren(node))
+            ExpandRecursively(child, depth + 1, maxDepth);
     }
 
     /// <summary>
