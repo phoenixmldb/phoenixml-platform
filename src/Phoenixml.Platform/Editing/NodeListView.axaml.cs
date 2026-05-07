@@ -69,6 +69,25 @@ public sealed partial class NodeListView : UserControl
     /// SetAttributeValueCommand or SetTextContentCommand for XML).
     /// </summary>
     public event Action<ITreeNode, string>? NodeValueChangeRequested;
+
+    /// <summary>
+    /// Raised when the user picks "Insert Child Element" from a row's context menu.
+    /// The argument is the parent node into which a new element should be inserted.
+    /// The host is responsible for routing to a vocabulary command (e.g. InsertElementCommand)
+    /// and silently ignoring the request when the node is not a valid parent (attribute, text, etc.).
+    /// </summary>
+    public event Action<ITreeNode>? NodeInsertChildElementRequested;
+
+    /// <summary>
+    /// Raised when the user picks "Insert Attribute" from a row's context menu.
+    /// </summary>
+    public event Action<ITreeNode>? NodeInsertAttributeRequested;
+
+    /// <summary>
+    /// Raised when the user picks "Delete" from a row's context menu, or presses Delete on a
+    /// selected row. The host should route to a vocabulary command (e.g. DeleteNodeCommand).
+    /// </summary>
+    public event Action<ITreeNode>? NodeDeleteRequested;
 #pragma warning restore CA1003
 
     /// <summary>
@@ -197,12 +216,37 @@ public sealed partial class NodeListView : UserControl
 
     private void RowsHost_KeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.F2 && sender is ListBox lb && lb.SelectedItem is NodeRowViewModel row)
+        if (sender is not ListBox lb || lb.SelectedItem is not NodeRowViewModel row) return;
+
+        if (e.Key == Key.F2)
         {
             row.EditingText = row.Label;
             row.IsEditing = true;
             e.Handled = true;
         }
+        else if (e.Key == Key.Delete)
+        {
+            NodeDeleteRequested?.Invoke(row.Node);
+            e.Handled = true;
+        }
+    }
+
+    private void InsertChildElement_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem mi && mi.Tag is NodeRowViewModel row)
+            NodeInsertChildElementRequested?.Invoke(row.Node);
+    }
+
+    private void InsertAttribute_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem mi && mi.Tag is NodeRowViewModel row)
+            NodeInsertAttributeRequested?.Invoke(row.Node);
+    }
+
+    private void Delete_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem mi && mi.Tag is NodeRowViewModel row)
+            NodeDeleteRequested?.Invoke(row.Node);
     }
 
     private void EditingBox_KeyDown(object? sender, KeyEventArgs e)

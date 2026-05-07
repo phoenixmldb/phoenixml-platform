@@ -9,6 +9,20 @@
         <ListBox.ItemTemplate>
             <DataTemplate DataType="{x:Type local:NodeRowViewModel}">
                 <Grid ColumnDefinitions="360,1,*">
+                    <Grid.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Insert Child Element"
+                                      Click="InsertChildElement_Click"
+                                      Tag="{Binding}" />
+                            <MenuItem Header="Insert Attribute"
+                                      Click="InsertAttribute_Click"
+                                      Tag="{Binding}" />
+                            <Separator />
+                            <MenuItem Header="Delete"
+                                      Click="Delete_Click"
+                                      Tag="{Binding}" />
+                        </ContextMenu>
+                    </Grid.ContextMenu>
                     <!-- Name column: indent spacer + chevron toggle + label (TextBlock/TextBox) -->
                     <StackPanel Grid.Column="0" Orientation="Horizontal">
                         <Border Width="{Binding IndentWidth}" />
