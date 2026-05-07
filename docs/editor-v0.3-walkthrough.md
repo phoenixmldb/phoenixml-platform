@@ -79,11 +79,14 @@ Ordered by friction.
 
 - [x] ~~**Value column is read-only.**~~ Click-to-edit on attributes and text-only elements; commits via `SetAttributeValueCommand` / `SetTextContentCommand` on the document's `IUndoStack`.
 
-### High friction
+### Resolved 2026-05-07 (Plan 10)
 
-- [ ] **No way to insert or delete nodes.** Need `InsertElementCommand`, `InsertAttributeCommand`, `DeleteNodeCommand`. Blocked on a NodeId allocator (where do new ids come from?) and `Children`-list mutation infrastructure. Plan 10's first design decision.
-- [ ] **Cannot create text content for empty elements.** Same NodeId-allocation blocker. `<empty/>` shows an empty value cell; clicking + typing fires `NodeValueChangeRequested` but the editor's routing recognizes the empty-element case and silently no-ops. Sub-task of Plan 10.
-- [ ] **No address bar / file path indicator.** XmlNotepad has an editable address bar at the top.
+- [x] ~~**No way to insert or delete nodes.**~~ Insert/Delete commands shipped + NodeId allocator. See [`editor-v0.4-walkthrough.md`](./editor-v0.4-walkthrough.md).
+- [x] ~~**Cannot create text content for empty elements.**~~ `SetTextContentCommand` now handles the empty path via the allocator.
+- [x] ~~**No address bar.**~~ Editable address bar below the toolbar.
+- [x] ~~**No toolbar with Open/Save/Undo/Redo icons.**~~ Material.Icons.Avalonia toolbar between menu and content.
+
+### High friction
 - [ ] **F2-then-immediately-type doesn't auto-focus the TextBox.** Avalonia container realization timing. Polish item.
 
 ### Medium friction
