@@ -17,7 +17,7 @@ internal sealed class DocumentTab : INotifyPropertyChanged
 
     /// <summary>
     /// Initializes a new <see cref="DocumentTab"/> for <paramref name="document"/>.
-    /// Subscribes to <see cref="XmlDocument.Changed"/> so <see cref="Title"/> fires
+    /// Subscribes to the document's <c>Changed</c> event so <see cref="Title"/> fires
     /// <see cref="PropertyChanged"/> whenever dirty state or display name changes.
     /// </summary>
     public DocumentTab(XmlDocument document)
@@ -29,7 +29,7 @@ internal sealed class DocumentTab : INotifyPropertyChanged
 
     /// <summary>
     /// Tab title — the document's display name plus a <c>*</c> suffix while it has
-    /// unsaved changes (<see cref="XmlDocument.IsDirty"/> is <see langword="true"/>).
+    /// unsaved changes (<c>IsDirty</c> is <see langword="true"/>).
     /// </summary>
     public string Title
     {
