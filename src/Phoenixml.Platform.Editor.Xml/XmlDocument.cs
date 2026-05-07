@@ -95,6 +95,47 @@ public sealed class XmlDocument : Document
         MarkClean();
     }
 
+    // Counter used by AllocateNodeId. Null until the first allocation (lazy init from _byId).
+    private ulong? _nextNodeIdValue;
+
+    /// <summary>
+    /// Allocates a fresh <see cref="NodeId"/> that is guaranteed not to collide with any
+    /// id already present in <c>_byId</c>. On the first call the counter is seeded from
+    /// <c>max(existing ids) + 1</c>; subsequent calls increment monotonically.
+    /// </summary>
+    /// <returns>A new <see cref="NodeId"/> not yet present in this document.</returns>
+    internal NodeId AllocateNodeId()
+    {
+        if (_nextNodeIdValue is null)
+        {
+            ulong max = 0;
+            foreach (var id in _byId.Keys)
+                if (id.Value > max) max = id.Value;
+            _nextNodeIdValue = max + 1;
+        }
+        var allocated = new NodeId(_nextNodeIdValue.Value);
+        _nextNodeIdValue = _nextNodeIdValue.Value + 1;
+        return allocated;
+    }
+
+    /// <summary>
+    /// Adds <paramref name="node"/> to the resolver dictionary under its <see cref="XdmNode.Id"/>.
+    /// Use this when inserting a brand-new node (e.g. a text child allocated via
+    /// <see cref="AllocateNodeId"/>). For replacing an existing entry, use
+    /// <see cref="ReplaceNode"/> instead.
+    /// </summary>
+    /// <param name="node">The node to add. Its <see cref="XdmNode.Id"/> must not already be present.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="node"/> is <see langword="null"/>.</exception>
+    /// <exception cref="InvalidOperationException">A node with the same id already exists; use <see cref="ReplaceNode"/> for swaps.</exception>
+    internal void AddNode(XdmNode node)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        if (_byId.ContainsKey(node.Id))
+            throw new InvalidOperationException(
+                $"A node with id {node.Id} is already present; use ReplaceNode for swap.");
+        _byId[node.Id] = node;
+    }
+
     /// <summary>
     /// Replaces the node behind <paramref name="id"/> with <paramref name="replacement"/>.
     /// XdmNode types are immutable; "edits" happen by constructing a new node with the
