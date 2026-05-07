@@ -72,6 +72,7 @@ public sealed class XmlDocument : Document
         if (Source is null)
             throw new InvalidOperationException("Cannot save a document with no Source URI; use SaveAsAsync.");
 
+        Compact();
         var xml = SerializeToString();
         var path = Source.LocalPath;
         var tempPath = path + ".tmp";
@@ -86,6 +87,7 @@ public sealed class XmlDocument : Document
     public async ValueTask SaveAsAsync(Uri target, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(target);
+        Compact();
         var xml = SerializeToString();
         var path = target.LocalPath;
         var tempPath = path + ".tmp";
@@ -93,6 +95,50 @@ public sealed class XmlDocument : Document
         File.Move(tempPath, path, overwrite: true);
         Source = target;
         MarkClean();
+    }
+
+    /// <summary>
+    /// Mark-and-sweep eviction of orphan NodeIds in <see cref="_byId"/>. Marks every NodeId
+    /// reachable from the document root, plus every NodeId referenced by commands on the
+    /// undo and redo stacks (so undo/redo across save still works). Sweeps everything else.
+    /// Called automatically before serialization in <see cref="SaveAsync"/> and <see cref="SaveAsAsync"/>.
+    /// </summary>
+    internal void Compact()
+    {
+        var alive = new HashSet<NodeId>();
+
+        // Mark phase 1: BFS from the document root through Children + Attributes.
+        var stack = new Stack<NodeId>();
+        alive.Add(_root.Id);
+        foreach (var childId in _root.Children)
+            stack.Push(childId);
+
+        while (stack.Count > 0)
+        {
+            var id = stack.Pop();
+            if (!alive.Add(id)) continue;
+            if (!_byId.TryGetValue(id, out var node)) continue;
+
+            if (node is XdmElement e)
+            {
+                foreach (var a in e.Attributes) stack.Push(a);
+                foreach (var c in e.Children) stack.Push(c);
+            }
+        }
+
+        // Mark phase 2: pin NodeIds referenced by commands on the undo and redo stacks.
+        foreach (var cmd in Undo.UndoCommands)
+            foreach (var id in cmd.ReferencedNodeIds)
+                alive.Add(id);
+        foreach (var cmd in Undo.RedoCommands)
+            foreach (var id in cmd.ReferencedNodeIds)
+                alive.Add(id);
+
+        // Sweep: remove every entry not marked alive.
+        var toRemove = new List<NodeId>();
+        foreach (var id in _byId.Keys)
+            if (!alive.Contains(id)) toRemove.Add(id);
+        foreach (var id in toRemove) _byId.Remove(id);
     }
 
     // Counter used by AllocateNodeId. Null until the first allocation (lazy init from _byId).
