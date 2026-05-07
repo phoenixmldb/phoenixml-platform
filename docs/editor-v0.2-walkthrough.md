@@ -85,9 +85,11 @@ These came up through real first-use feedback. Each is worth remembering as an e
 
 Ordered by friction.
 
-### High friction
+### Resolved 2026-05-07 (Plan 9)
 
-- [ ] **Value column is read-only.** You can see attribute values and text content but can't edit them. Next obvious feature: `SetAttributeValueCommand`, `SetTextContentCommand`. F2 in the value column would commit changes through the same IUndoStack pattern.
+- [x] ~~**Value column is read-only.**~~ Click-to-edit on attributes and text-only elements; commits via `SetAttributeValueCommand` / `SetTextContentCommand` on the document's `IUndoStack`. See [`editor-v0.3-walkthrough.md`](./editor-v0.3-walkthrough.md) for v0.3 state and the v0.4 backlog.
+
+### High friction
 - [ ] **No way to insert or delete nodes.** Need `InsertElementCommand`, `InsertAttributeCommand`, `DeleteNodeCommand`. UX: right-click context menu on a tree row, or Insert/Delete keys. XmlNotepad uses the Insert menu + a small toolbar.
 - [ ] **F2-then-immediately-type doesn't auto-focus the TextBox.** User has to click into the box. Avalonia container realization timing makes this finicky; document as polish item.
 - [ ] **No address bar / file path indicator.** XmlNotepad has an editable address bar at the top. Useful for "open this other file" without going through the picker.
