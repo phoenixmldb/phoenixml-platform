@@ -109,7 +109,7 @@ internal sealed class EditorExplorer : DockPanel
         SetRoot(folder);
     }
 
-    private void SetRoot(string folder)
+    internal void SetRoot(string folder)
     {
         _roots.Clear();
         if (!Directory.Exists(folder))
@@ -132,9 +132,12 @@ internal sealed class EditorExplorer : DockPanel
     private void OnTreeDoubleTapped(object? sender, TappedEventArgs e)
     {
         if (_tree.SelectedItem is not ExplorerNode node) return;
+        // Always handle the event so Avalonia's default double-click toggle doesn't
+        // collapse the folder we just expanded. For files, route to Open; for folders,
+        // single-click on the chevron is the (correct) expand gesture.
+        e.Handled = true;
         if (node.IsDirectory) return;
         _window.OpenFileOnLaunch(node.Path);
-        e.Handled = true;
     }
 
     private async System.Threading.Tasks.Task PickFolderAsync()

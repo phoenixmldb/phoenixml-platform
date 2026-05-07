@@ -136,7 +136,8 @@ public sealed class EditorMainWindow
         DockPanel.SetDock(toolbar, Dock.Top);
         var addressBar = new Phoenixml.Editor.Toolbar.EditorAddressBar(this);
         DockPanel.SetDock(addressBar, Dock.Top);
-        var explorer = new Phoenixml.Editor.Explorer.EditorExplorer(this) { Width = 250 };
+        Explorer = new Phoenixml.Editor.Explorer.EditorExplorer(this) { Width = 250 };
+        var explorer = Explorer;
         var collapseButton = new Button
         {
             Content = "◀",
@@ -239,6 +240,10 @@ public sealed class EditorMainWindow
 
     /// <summary>Gets the editor view-model state (active document, etc.).</summary>
     internal EditorState State => _state;
+
+    /// <summary>The left-column file explorer. Surface for the address bar (paste a folder path)
+    /// and other consumers that want to retarget the explorer's root.</summary>
+    internal Phoenixml.Editor.Explorer.EditorExplorer Explorer { get; private set; } = null!;
 
     private void OnActiveDocumentChanged(XmlDocument? doc)
     {

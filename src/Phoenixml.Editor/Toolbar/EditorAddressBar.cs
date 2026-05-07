@@ -51,8 +51,13 @@ internal sealed class EditorAddressBar : Border
         if (e.Key == Key.Enter)
         {
             var path = (_pathBox.Text ?? string.Empty).Trim();
-            if (path.Length > 0 && File.Exists(path))
-                _window.OpenFileOnLaunch(path);
+            if (path.Length > 0)
+            {
+                if (Directory.Exists(path))
+                    _window.Explorer.SetRoot(path);
+                else if (File.Exists(path))
+                    _window.OpenFileOnLaunch(path);
+            }
             e.Handled = true;
         }
         else if (e.Key == Key.Escape)
