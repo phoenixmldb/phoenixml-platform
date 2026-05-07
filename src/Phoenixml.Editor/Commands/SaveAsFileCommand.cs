@@ -32,5 +32,6 @@ internal static class SaveAsFileCommand
         if (path is null) return;
 
         await doc.SaveAsAsync(new Uri(path), ct);
+        window.Settings.RecordRecentFile(path);
     }
 }
