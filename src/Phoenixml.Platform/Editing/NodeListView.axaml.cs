@@ -183,7 +183,7 @@ public sealed partial class NodeListView : UserControl
         if (targetRow is null) return;
 
         host.SelectedIndex = targetIndex;
-        targetRow.EditingText = targetRow.Label;
+        targetRow.EditingText = targetRow.EditableName;
         targetRow.IsEditing = true;
 
         // Container realization is async — the TextBox isn't in the visual tree yet. Defer
@@ -283,7 +283,7 @@ public sealed partial class NodeListView : UserControl
 
         if (e.Key == Key.F2)
         {
-            row.EditingText = row.Label;
+            row.EditingText = row.EditableName;
             row.IsEditing = true;
             e.Handled = true;
         }
@@ -337,7 +337,7 @@ public sealed partial class NodeListView : UserControl
     {
         row.IsEditing = false;
         var trimmed = newLabel.Trim();
-        if (string.IsNullOrEmpty(trimmed) || trimmed == row.Label) return;
+        if (string.IsNullOrEmpty(trimmed) || trimmed == row.EditableName) return;
         NodeRenameRequested?.Invoke(row.Node, trimmed);
     }
 
@@ -399,6 +399,9 @@ public sealed class NodeRowViewModel : INotifyPropertyChanged
 
     /// <summary>Display label forwarded from <see cref="Node"/>.</summary>
     public string Label => Node.Label;
+
+    /// <summary>Editable name forwarded from <see cref="Node"/>.</summary>
+    public string EditableName => Node.EditableName;
 
     /// <summary>Display value forwarded from <see cref="Node"/>.</summary>
     public string Value => Node.Value;

@@ -25,4 +25,13 @@ public interface ITreeNode
     /// Vocabulary providers decide what counts as "the value" for each node kind.
     /// </summary>
     string Value { get; }
+
+    /// <summary>
+    /// Text shown in the inline edit TextBox when the user enters rename mode.
+    /// For most nodes this matches <see cref="Label"/>, but vocabulary providers can return
+    /// a different form for cells whose label includes presentation prefixes — for example,
+    /// XML attributes whose label is <c>@id</c> return the bare local name <c>id</c> here so
+    /// the user doesn't end up with <c>@@id</c> after editing.
+    /// </summary>
+    string EditableName { get; }
 }

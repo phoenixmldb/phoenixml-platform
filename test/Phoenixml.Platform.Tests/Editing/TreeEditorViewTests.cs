@@ -11,6 +11,7 @@ file sealed class StubNode(string id, string label, bool hasChildren = false) : 
     public string? IconKey { get; }
     public bool HasChildren { get; } = hasChildren;
     public string Value { get; } = string.Empty;
+    public string EditableName => Label;
 }
 
 // Minimal stub ITreeNodeProvider.

@@ -30,6 +30,14 @@ public sealed class XmlTreeNode : ITreeNode
     public string Id => XdmNode.Id.ToString();
 
     /// <inheritdoc/>
+    public string EditableName => XdmNode switch
+    {
+        XdmElement el => el.LocalName,
+        XdmAttribute a => a.LocalName,
+        _ => Label
+    };
+
+    /// <inheritdoc/>
     public string Label => XdmNode switch
     {
         XdmDocument doc => DocumentLabel(doc),
