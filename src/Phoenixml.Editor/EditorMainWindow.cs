@@ -112,7 +112,10 @@ public sealed class EditorMainWindow
             ItemsSource = new[] { FileMenu.Build(this), EditMenu.Build(this) },
         };
         DockPanel.SetDock(menu, Dock.Top);
+        var toolbar = new Phoenixml.Editor.Toolbar.EditorToolbar(this);
+        DockPanel.SetDock(toolbar, Dock.Top);
         _rootPanel.Children.Add(menu);
+        _rootPanel.Children.Add(toolbar);
         _rootPanel.Children.Add(_nodeList);
 
         _window.SetContent(_rootPanel);

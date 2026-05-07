@@ -21,6 +21,7 @@
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="Avalonia.Diagnostics" Condition="'$(Configuration)' == 'Debug'" />
+    <PackageReference Include="Material.Icons.Avalonia" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Phoenixml.Platform/Phoenixml.Platform.csproj" />
