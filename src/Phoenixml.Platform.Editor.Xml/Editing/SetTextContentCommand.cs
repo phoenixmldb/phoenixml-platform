@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using PhoenixmlDb.Core;
 using PhoenixmlDb.Xdm.Nodes;
 using Phoenixml.Platform.Abstractions.Documents;
@@ -7,35 +8,50 @@ using PlatformEditorCommand = Phoenixml.Platform.Abstractions.Documents.IEditorC
 namespace Phoenixml.Platform.Editor.Xml.Editing;
 
 /// <summary>
-/// Replaces the string value of a text-only element's single <see cref="XdmText"/> child.
-/// The element itself is unchanged because its <c>Children</c> list still references the
-/// same <see cref="NodeId"/> — only the text node's <see cref="XdmText.Value"/> is swapped.
+/// Sets the text content of an element. Supports two scenarios:
+/// <list type="bullet">
+///   <item>
+///     <description>
+///       <b>ReplacedExistingText</b> — the element already has a single <see cref="XdmText"/> child.
+///       Only the text node's <see cref="XdmText.Value"/> is swapped; the element's <c>Children</c>
+///       list is unchanged.
+///     </description>
+///   </item>
+///   <item>
+///     <description>
+///       <b>CreatedNewText</b> — the element has no children at all (empty element). A fresh
+///       <see cref="XdmText"/> node is allocated, added to the document store, and the element is
+///       replaced with a new version whose <c>Children</c> list contains the new text node's id.
+///     </description>
+///   </item>
+/// </list>
 /// </summary>
 /// <remarks>
-/// This command intentionally only supports text-only elements (elements whose only children
-/// are text, comment, or processing-instruction nodes and which have exactly one text child).
-/// <para>
-/// Empty elements (no text child at all) require allocating a new NodeId and mutating the
-/// parent's Children list — this is deferred to Plan 10.
-/// </para>
-/// <para>
-/// Mixed-content elements (those with element children) have no single text value to edit
-/// and are also rejected.
-/// </para>
+/// Mixed-content elements (those with element children) are rejected with an
+/// <see cref="InvalidOperationException"/> — editing the value column on those is the wrong UX.
 /// </remarks>
 public sealed class SetTextContentCommand : PlatformEditorCommand
 {
+    private enum PathTaken { None, ReplacedExistingText, CreatedNewText }
+
     private readonly XmlDocument _document;
     private readonly NodeId _elementId;
     private readonly string _newText;
+
+    // ReplacedExistingText path fields (carry over from v0.3).
     private XdmText? _previousTextNode;
     private NodeId _textNodeId;
+
+    // CreatedNewText path fields.
+    private PathTaken _path = PathTaken.None;
+    private XdmElement? _previousElement; // snapshot of element before the first Apply
+    private NodeId _newTextId;            // allocated once; reused on redo
 
     /// <summary>
     /// Initializes a new <see cref="SetTextContentCommand"/>.
     /// </summary>
     /// <param name="document">The document whose node store will be mutated.</param>
-    /// <param name="elementId">The NodeId of the text-only element to update.</param>
+    /// <param name="elementId">The <see cref="NodeId"/> of the element to update.</param>
     /// <param name="newText">The replacement text content.</param>
     public SetTextContentCommand(XmlDocument document, NodeId elementId, string newText)
     {
@@ -50,7 +66,10 @@ public sealed class SetTextContentCommand : PlatformEditorCommand
     public string Description => $"Set text to '{Truncate(_newText, 30)}'";
 
     /// <inheritdoc/>
-    public IEnumerable<NodeId> ReferencedNodeIds => Array.Empty<NodeId>();
+    public IEnumerable<NodeId> ReferencedNodeIds =>
+        _path == PathTaken.CreatedNewText && _newTextId != default
+            ? new[] { _newTextId }
+            : Array.Empty<NodeId>();
 
     /// <inheritdoc/>
     public void Apply(PlatformDocument document)
@@ -59,16 +78,17 @@ public sealed class SetTextContentCommand : PlatformEditorCommand
             ?? throw new InvalidOperationException(
                 $"Node {_elementId} is not an XdmElement; cannot set text content.");
 
-        // Locate the single text-child. v0.3 intentionally only supports text-only
-        // elements (one XdmText child, no element children). Empty-element and mixed
-        // content are deferred to Plan 10.
+        // Classify the element's current content.
         XdmText? textChild = null;
+        bool hasElementChildren = false;
         foreach (var childId in element.Children)
         {
             var child = _document.Resolve(childId);
             if (child is XdmElement)
-                throw new InvalidOperationException(
-                    $"Element {_elementId} has element children; SetTextContentCommand only supports text-only elements.");
+            {
+                hasElementChildren = true;
+                break;
+            }
             if (child is XdmText t)
             {
                 if (textChild is not null)
@@ -78,40 +98,100 @@ public sealed class SetTextContentCommand : PlatformEditorCommand
             }
         }
 
-        if (textChild is null)
+        if (hasElementChildren)
             throw new InvalidOperationException(
-                $"Element {_elementId} has no text child to update; SetTextContentCommand requires an existing XdmText child (creating one is Plan 10).");
+                $"Element {_elementId} has element children; SetTextContentCommand only supports text-only or empty elements.");
 
-        _previousTextNode = textChild;
-        _textNodeId = textChild.Id;
+        if (textChild is null)
+        {
+            // ── CreatedNewText path ──────────────────────────────────────────────
+            // Zero children. Allocate a fresh text node id on the FIRST Apply only;
+            // subsequent redo calls reuse the same id (the node is still in _byId).
+            _previousElement ??= element;
 
-        var updated = WithValue(textChild, _newText);
-        _document.ReplaceNode(_textNodeId, updated);
+            if (_path != PathTaken.CreatedNewText)
+            {
+                // First Apply: allocate a new id and insert the text node.
+                _newTextId = _document.AllocateNodeId();
+                var newText = new XdmText
+                {
+                    Id = _newTextId,
+                    Document = element.Document,
+                    Parent = _elementId,
+                    Value = _newText,
+                };
+                _document.AddNode(newText);
+            }
+            else
+            {
+                // Redo: the text node is already in _byId (Revert left it orphaned).
+                // Update its value in place by replacing with a fresh instance.
+                var existing = (XdmText)_document.Resolve(_newTextId)!;
+                var updated = new XdmText
+                {
+                    Id = _newTextId,
+                    Document = existing.Document,
+                    Parent = existing.Parent,
+                    Value = _newText,
+                };
+                _document.ReplaceNode(_newTextId, updated);
+            }
+
+            // Replace the element with a version that has the text node as its sole child.
+            var updatedElement = WithChildren(element, ImmutableArray.Create(_newTextId));
+            _document.ReplaceNode(_elementId, updatedElement);
+            _path = PathTaken.CreatedNewText;
+        }
+        else
+        {
+            // ── ReplacedExistingText path ────────────────────────────────────────
+            _previousTextNode = textChild;
+            _textNodeId = textChild.Id;
+            var updated = WithValue(textChild, _newText);
+            _document.ReplaceNode(_textNodeId, updated);
+            _path = PathTaken.ReplacedExistingText;
+        }
     }
 
     /// <inheritdoc/>
     public void Revert(PlatformDocument document)
     {
-        if (_previousTextNode is null) return;
-        _document.ReplaceNode(_textNodeId, _previousTextNode);
+        if (_path == PathTaken.CreatedNewText)
+        {
+            // Restore the original empty element. The text node stays orphaned in _byId.
+            if (_previousElement is not null)
+                _document.ReplaceNode(_elementId, _previousElement);
+        }
+        else if (_path == PathTaken.ReplacedExistingText)
+        {
+            if (_previousTextNode is null) return;
+            _document.ReplaceNode(_textNodeId, _previousTextNode);
+        }
     }
 
     /// <inheritdoc/>
     public bool TryMergeWith(PlatformEditorCommand previous, out PlatformEditorCommand merged)
     {
-        // Two consecutive text sets on the same element collapse into one undo step.
+        // Convention (matches UndoStack call site):
+        //   this     = the already-applied command sitting on top of the stack
+        //   previous = the NEW command about to be applied (confusingly named, but matches interface)
         //
-        // UndoStack calls: stackTop.TryMergeWith(newCommand, out merged)
-        //   this     = the already-applied command on the stack (has _previousTextNode = original)
-        //   previous = the new command being executed (not yet applied)
+        // Only merge within the ReplacedExistingText path. The CreatedNewText case
+        // (first-time typing into an empty element) gets separate undo entries —
+        // predicting the new command's path before Apply runs is not feasible, so we
+        // skip the merge to avoid complexity. Acceptable trade-off since this scenario
+        // is rare.
         if (previous is SetTextContentCommand next
             && next._document == _document
-            && next._elementId == _elementId)
+            && next._elementId == _elementId
+            && _path == PathTaken.ReplacedExistingText   // this (stack top) has already run Apply
+            && next._path == PathTaken.None)             // new command has not run Apply yet
         {
             merged = new SetTextContentCommand(_document, _elementId, next._newText)
             {
-                _previousTextNode = _previousTextNode,  // preserve the ORIGINAL pre-edit text node
+                _previousTextNode = _previousTextNode,  // preserve the ORIGINAL pre-edit text node (from this)
                 _textNodeId = _textNodeId,
+                _path = PathTaken.ReplacedExistingText,
             };
             return true;
         }
@@ -127,6 +207,22 @@ public sealed class SetTextContentCommand : PlatformEditorCommand
             Document = source.Document,
             Parent = source.Parent,
             Value = newValue,
+        };
+
+    private static XdmElement WithChildren(XdmElement source, IReadOnlyList<NodeId> newChildren) =>
+        new()
+        {
+            Id = source.Id,
+            Document = source.Document,
+            Parent = source.Parent,
+            Namespace = source.Namespace,
+            LocalName = source.LocalName,
+            Prefix = source.Prefix,
+            Attributes = source.Attributes,
+            Children = newChildren,
+            NamespaceDeclarations = source.NamespaceDeclarations,
+            TypeAnnotation = source.TypeAnnotation,
+            IsIdContent = source.IsIdContent,
         };
 
     private static string Truncate(string s, int max) =>

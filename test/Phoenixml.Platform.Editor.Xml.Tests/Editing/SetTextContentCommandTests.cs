@@ -22,7 +22,6 @@ public class SetTextContentCommandTests
         "<product id=\"E002\"><name>Gadget</name></product>" +
         "</catalog>";
 
-    private const string EmptyElementXml = "<root><empty/></root>";
     private const string ContainerElementXml = "<root><parent><child/></parent></root>";
 
     /// <summary>
@@ -110,29 +109,6 @@ public class SetTextContentCommandTests
         // Children list must reference the same NodeIds (element not mutated)
         Assert.Equal(originalChildren, after.Children);
         Assert.Equal(originalAttributes, after.Attributes);
-    }
-
-    [Fact]
-    public void ApplyOnEmptyElementThrows()
-    {
-        var (result, nsTable) = XmlDocument.ParseXml(EmptyElementXml);
-        var doc = new XmlDocument(
-            PlatformDocumentId.New(),
-            source: null,
-            "empty.xml",
-            result,
-            nsTable);
-
-        var rootId = result.Document.DocumentElement!.Value;
-        var rootElem = (XdmElement)doc.Resolve(rootId)!;
-
-        // Find the <empty/> element
-        var emptyId = rootElem.Children.First(id => doc.Resolve(id) is XdmElement);
-
-        var cmd = new SetTextContentCommand(doc, emptyId, "some text");
-
-        var ex = Assert.Throws<InvalidOperationException>(() => cmd.Apply(doc));
-        Assert.Contains("no text child", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
