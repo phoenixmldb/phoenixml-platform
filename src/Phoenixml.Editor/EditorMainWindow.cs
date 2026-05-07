@@ -1,5 +1,7 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Layout;
+using Phoenixml.Editor.Commands;
 using Phoenixml.Editor.Menus;
 using Phoenixml.Editor.ViewModels;
 using Phoenixml.Platform.Editor.Xml;
@@ -44,12 +46,39 @@ public sealed class EditorMainWindow
 
         _rootPanel = new DockPanel { LastChildFill = true };
 
-        var menu = FileMenu.Build(this);
+        var menu = new Menu
+        {
+            ItemsSource = new[] { FileMenu.Build(this), EditMenu.Build(this) },
+        };
         DockPanel.SetDock(menu, Dock.Top);
         _rootPanel.Children.Add(menu);
         _rootPanel.Children.Add(split);
 
         _window.SetContent(_rootPanel);
+
+        // Window-wide keyboard shortcuts — fire regardless of which control has focus.
+        _window.KeyBindings.Add(new KeyBinding
+        {
+            Gesture = new KeyGesture(Key.Z, KeyModifiers.Control),
+            Command = new RelayCommand(() => UndoCommand.Execute(this)),
+        });
+        _window.KeyBindings.Add(new KeyBinding
+        {
+            Gesture = new KeyGesture(Key.Y, KeyModifiers.Control),
+            Command = new RelayCommand(() => RedoCommand.Execute(this)),
+        });
+        _window.KeyBindings.Add(new KeyBinding
+        {
+            Gesture = new KeyGesture(Key.O, KeyModifiers.Control),
+            Command = new RelayCommand(async () =>
+                await OpenFileCommand.ExecuteAsync(this, CancellationToken.None)),
+        });
+        _window.KeyBindings.Add(new KeyBinding
+        {
+            Gesture = new KeyGesture(Key.S, KeyModifiers.Control),
+            Command = new RelayCommand(async () =>
+                await SaveFileCommand.ExecuteAsync(this, CancellationToken.None)),
+        });
 
         UpdateStatusBar();
 
