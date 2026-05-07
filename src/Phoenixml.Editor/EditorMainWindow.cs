@@ -114,8 +114,12 @@ public sealed class EditorMainWindow
         DockPanel.SetDock(menu, Dock.Top);
         var toolbar = new Phoenixml.Editor.Toolbar.EditorToolbar(this);
         DockPanel.SetDock(toolbar, Dock.Top);
+        var addressBar = new Phoenixml.Editor.Toolbar.EditorAddressBar(this);
+        DockPanel.SetDock(addressBar, Dock.Top);
+        // Order: menu, toolbar, addressBar, nodeList (LastChildFill takes the rest).
         _rootPanel.Children.Add(menu);
         _rootPanel.Children.Add(toolbar);
+        _rootPanel.Children.Add(addressBar);
         _rootPanel.Children.Add(_nodeList);
 
         _window.SetContent(_rootPanel);
