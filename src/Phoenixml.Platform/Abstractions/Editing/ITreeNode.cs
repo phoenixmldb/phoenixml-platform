@@ -18,4 +18,11 @@ public interface ITreeNode
 
     /// <summary>True if this node has children that haven't been enumerated yet.</summary>
     bool HasChildren { get; }
+
+    /// <summary>
+    /// Display value for this node (e.g. attribute value, text-only element's text content).
+    /// Empty string for container nodes (elements with element children) and the document node itself.
+    /// Vocabulary providers decide what counts as "the value" for each node kind.
+    /// </summary>
+    string Value { get; }
 }

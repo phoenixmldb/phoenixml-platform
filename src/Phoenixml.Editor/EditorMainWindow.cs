@@ -16,7 +16,8 @@ namespace Phoenixml.Editor;
 
 /// <summary>
 /// Composes the editor window: wraps <see cref="MainWindow"/> from Shell and
-/// injects the dual-pane (tree + text) layout into its content slot.
+/// injects the XmlNotepad-style <see cref="NodeListView"/> (names on the left, values on
+/// the right) as the primary editor surface.
 /// </summary>
 /// <remarks>
 /// <see cref="MainWindow"/> is sealed, so inheritance is not possible.
@@ -27,8 +28,7 @@ public sealed class EditorMainWindow
 {
     private readonly MainWindow _window;
     private readonly EditorState _state = new();
-    private readonly TreeEditorView _treeView;
-    private readonly TextEditorView _textView;
+    private readonly NodeListView _nodeList;
     private IDocument? _subscribedDocument;
 
     /// <summary>Initializes a new <see cref="EditorMainWindow"/>.</summary>
@@ -36,19 +36,10 @@ public sealed class EditorMainWindow
     {
         _window = new MainWindow();
 
-        _treeView = new TreeEditorView();
-        _textView = new TextEditorView { IsReadOnly = true };
-
-        var split = new Platform.Shell.SplitView
-        {
-            Orientation = Avalonia.Layout.Orientation.Horizontal,
-            Pane1Size = 360,
-            Pane1Content = _treeView,
-            Pane2Content = _textView,
-        };
+        _nodeList = new NodeListView();
 
         // Wire F2 inline rename — routes to element or attribute command based on node kind.
-        _treeView.NodeRenameRequested += (node, newLabel) =>
+        _nodeList.NodeRenameRequested += (node, newLabel) =>
         {
             if (_state.ActiveDocument is not XmlDocument doc) return;
             if (node is not XmlTreeNode xmlNode) return;
@@ -73,7 +64,7 @@ public sealed class EditorMainWindow
         };
         DockPanel.SetDock(menu, Dock.Top);
         _rootPanel.Children.Add(menu);
-        _rootPanel.Children.Add(split);
+        _rootPanel.Children.Add(_nodeList);
 
         _window.SetContent(_rootPanel);
 
@@ -108,6 +99,29 @@ public sealed class EditorMainWindow
         _state.ActiveDocumentChanged += OnActiveDocumentChanged;
     }
 
+    /// <summary>
+    /// Opens a file at startup (called from <see cref="App.OnFrameworkInitializationCompleted"/>
+    /// when a path is passed as a command-line argument). Fire-and-forget; failures are silent.
+    /// </summary>
+    public void OpenFileOnLaunch(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        _ = OpenFileOnLaunchAsync(path);
+    }
+
+    private async Task OpenFileOnLaunchAsync(string path)
+    {
+        try
+        {
+            var doc = await Phoenixml.Platform.Editor.Xml.XmlDocument
+                .LoadAsync(path, CancellationToken.None);
+            _state.ActiveDocument = doc;
+        }
+        catch (System.IO.IOException) { /* file gone or locked — silent skip */ }
+        catch (UnauthorizedAccessException) { /* permission — silent skip */ }
+        catch (System.Xml.XmlException) { /* malformed XML — silent skip */ }
+    }
+
     private void UpdateStatusBar()
     {
         var doc = _state.ActiveDocument;
@@ -136,15 +150,13 @@ public sealed class EditorMainWindow
 
         if (doc is null)
         {
-            _treeView.SetProvider(null);
-            _textView.Text = string.Empty;
+            _nodeList.SetProvider(null);
             _window.SetTitle("Phoenixml Editor");
             UpdateStatusBar();
             return;
         }
 
-        _treeView.SetProvider(doc.TreeNodes);
-        _textView.Text = doc.SerializeToString();
+        _nodeList.SetProvider(doc.TreeNodes);
 
         _window.SetTitle($"Phoenixml Editor — {doc.DisplayName}");
         UpdateStatusBar();
@@ -154,13 +166,9 @@ public sealed class EditorMainWindow
 
     private void OnSubscribedDocumentChanged(DocumentChange change)
     {
-        // Rebuild the text view's serialized output after each edit. The tree view refreshes
-        // via XmlTreeNodeProvider.Changed (it subscribes to the same Document.Changed).
-        if (_state.ActiveDocument is XmlDocument doc)
-        {
-            _textView.Text = doc.SerializeToString();
-            UpdateStatusBar();
-        }
+        // The NodeListView refreshes itself via XmlTreeNodeProvider.Changed (which fires on
+        // Document.Changed). Only the status bar needs an explicit update here.
+        UpdateStatusBar();
     }
 }
 

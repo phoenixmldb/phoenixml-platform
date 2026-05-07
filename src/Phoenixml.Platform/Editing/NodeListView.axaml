@@ -1,0 +1,50 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Phoenixml.Platform.Editing"
+             x:Class="Phoenixml.Platform.Editing.NodeListView">
+    <ListBox Name="RowsHost"
+             Background="{DynamicResource Phoenixml.Color.Surface.Base}"
+             SelectionChanged="RowsHost_SelectionChanged"
+             KeyDown="RowsHost_KeyDown">
+        <ListBox.ItemTemplate>
+            <DataTemplate DataType="{x:Type local:NodeRowViewModel}">
+                <Grid ColumnDefinitions="360,*">
+                    <!-- Name column: indent spacer + chevron toggle + label (TextBlock/TextBox) -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                        <Border Width="{Binding IndentWidth}" />
+                        <Button Width="16" Height="16"
+                                Padding="0"
+                                Margin="0,0,4,0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                IsVisible="{Binding HasChildren}"
+                                Content="{Binding ChevronGlyph}"
+                                Foreground="{DynamicResource Phoenixml.Color.Content.Secondary}"
+                                Click="Chevron_Click"
+                                Tag="{Binding}" />
+                        <Border Width="20" IsVisible="{Binding !HasChildren}" />
+                        <Grid>
+                            <TextBlock Text="{Binding Label}"
+                                       IsVisible="{Binding !IsEditing}"
+                                       Foreground="{DynamicResource Phoenixml.Color.Content.Primary}"
+                                       VerticalAlignment="Center" />
+                            <TextBox Text="{Binding EditingText, Mode=TwoWay}"
+                                     IsVisible="{Binding IsEditing}"
+                                     KeyDown="EditingBox_KeyDown"
+                                     LostFocus="EditingBox_LostFocus"
+                                     MinWidth="120"
+                                     Padding="2,0" />
+                        </Grid>
+                    </StackPanel>
+                    <!-- Value column -->
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding Value}"
+                               Foreground="{DynamicResource Phoenixml.Color.Content.Primary}"
+                               VerticalAlignment="Center"
+                               Margin="8,0,0,0"
+                               TextTrimming="CharacterEllipsis" />
+                </Grid>
+            </DataTemplate>
+        </ListBox.ItemTemplate>
+    </ListBox>
+</UserControl>

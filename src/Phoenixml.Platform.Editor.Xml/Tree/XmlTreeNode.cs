@@ -75,6 +75,38 @@ public sealed class XmlTreeNode : ITreeNode
         _ => false
     };
 
+    /// <inheritdoc/>
+    public string Value => XdmNode switch
+    {
+        XdmDocument => string.Empty,
+        XdmElement el => ElementValue(el),
+        XdmAttribute a => a.Value,
+        XdmText t => t.Value,
+        XdmComment c => c.Value,
+        XdmProcessingInstruction pi => pi.Value,
+        _ => string.Empty
+    };
+
+    private string ElementValue(XdmElement el)
+    {
+        // Resolve each child NodeId to check whether any is an element.
+        // Container element (has element children) → empty value column.
+        foreach (var childId in el.Children)
+        {
+            if (_document.Resolve(childId) is XdmElement)
+                return string.Empty;
+        }
+
+        // Text-only element → concatenate all text node values.
+        var sb = new System.Text.StringBuilder();
+        foreach (var childId in el.Children)
+        {
+            if (_document.Resolve(childId) is XdmText t)
+                sb.Append(t.Value);
+        }
+        return sb.ToString();
+    }
+
     private static string Truncate(string s, int max) =>
         s.Length <= max ? s : s[..(max - 1)] + "…";
 }
