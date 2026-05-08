@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Phoenixml.Platform.Abstractions.Editing;
 using Phoenixml.Platform.Editor.Xml;
@@ -118,5 +119,47 @@ public class XmlSchemaValidatorTests
         // XmlSchemaSet.Add throws an IOException when the file doesn't exist
         var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".xsd");
         Assert.Throws<FileNotFoundException>(() => SchemaValidator.LoadSchema(path));
+    }
+
+    [Fact]
+    public async Task ValidateInvalidDocPopulatesLocationNodeId()
+    {
+        // The XSD parser records SourceLine/SourceColumn; an invalid element at a known
+        // position should yield at least one diagnostic whose Location.NodeId resolves to
+        // a valid XdmNode in the document.
+        var dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var (xsdPath, xmlPath) = await WriteFixtures(
+                dir, InvalidXml, TestContext.Current.CancellationToken).ConfigureAwait(true);
+            var schemas = SchemaValidator.LoadSchema(xsdPath);
+            var doc = await XmlDocument.LoadAsync(
+                xmlPath, TestContext.Current.CancellationToken).ConfigureAwait(true);
+
+            var diagnostics = SchemaValidator.Validate(doc, schemas);
+
+            // At least one diagnostic must carry a mapped Location with a valid NodeId.
+            var withLocation = diagnostics
+                .Where(d => d.Location is not null)
+                .ToList();
+
+            Assert.NotEmpty(withLocation);
+
+            foreach (var d in withLocation)
+            {
+                var loc = d.Location!;
+                // NodeId must resolve to a real node in the document.
+                var node = doc.Resolve(loc.NodeId);
+                Assert.NotNull(node);
+                // Line and column must be positive.
+                Assert.True(loc.Line > 0, $"Expected Line > 0, got {loc.Line}");
+                Assert.True(loc.Column > 0, $"Expected Column > 0, got {loc.Column}");
+            }
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
     }
 }
