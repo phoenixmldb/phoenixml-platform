@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Phoenixml.Platform.Abstractions.Editing;
@@ -435,6 +436,30 @@ public sealed class NodeRowViewModel : INotifyPropertyChanged
 
     /// <summary>Chevron glyph: ▼ when expanded, ▶ when collapsed.</summary>
     public string ChevronGlyph => _isExpanded ? "▼" : "▶";
+
+    /// <summary>
+    /// Diagnostic overlay glyph derived from <see cref="ITreeNode.IconKey"/>.
+    /// Returns <c>"✕"</c> for error, <c>"⚠"</c> for warning, and
+    /// <see cref="string.Empty"/> when there is no diagnostic annotation.
+    /// </summary>
+    public string DiagnosticGlyph => Node.IconKey switch
+    {
+        "diag.error"   => "✕",
+        "diag.warning" => "⚠",
+        _              => string.Empty,
+    };
+
+    /// <summary>
+    /// Brush for the <see cref="DiagnosticGlyph"/>. Red for errors, yellow for warnings,
+    /// transparent when there is no diagnostic — so the 16-dip slot takes up no visual
+    /// space when the row is clean.
+    /// </summary>
+    public IBrush DiagnosticGlyphBrush => Node.IconKey switch
+    {
+        "diag.error"   => new SolidColorBrush(Color.Parse("#C42B1C")),
+        "diag.warning" => new SolidColorBrush(Color.Parse("#CA8B00")),
+        _              => Brushes.Transparent,
+    };
 
     private bool _isEditing;
 

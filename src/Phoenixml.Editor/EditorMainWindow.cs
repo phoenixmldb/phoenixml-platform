@@ -36,6 +36,7 @@ public sealed class EditorMainWindow
     private readonly EditorState _state = new();
     private readonly NodeListView _nodeList;
     private readonly EditorValidationService _validation;
+    private readonly DiagnosticIndex _diagIndex = new();
     private IDocument? _subscribedDocument;
 
     /// <summary>
@@ -186,9 +187,19 @@ public sealed class EditorMainWindow
         DockPanel.SetDock(problemsContainer, Dock.Bottom);
         problemsContainer.Children.Add(problems);
 
-        // Wire validation: track the active document and push diagnostics to the view.
+        // Wire validation: track the active document and push diagnostics to the view
+        // and to the DiagnosticIndex so tree rows can show inline error glyphs.
         _state.ActiveDocumentChanged += doc => _validation.SetActiveDocument(doc);
-        _validation.DiagnosticsChanged += diags => problems.SetDiagnostics(diags);
+        _validation.DiagnosticsChanged += diags =>
+        {
+            _diagIndex.Reset(diags);
+            problems.SetDiagnostics(diags);
+            // Trigger a NodeListView rebuild so IconKey changes (via DiagnosticIndex)
+            // propagate to all visible rows. The provider's RaiseChanged fires Changed,
+            // which NodeListView handles the same way as Document.Changed.
+            if (_state.ActiveDocument is XmlDocument activeDoc)
+                activeDoc.TreeNodes.TriggerRefresh();
+        };
 
         // Wire click-to-navigate: double-click a diagnostic row → select the offending node.
         // Precise path: use the parsed Location.NodeId from Plan 13 (B2/B3).
@@ -366,6 +377,9 @@ public sealed class EditorMainWindow
             return;
         }
 
+        // Attach the diagnostic index to the new provider so XmlTreeNode.IconKey
+        // can reflect the latest validation state.
+        doc.TreeNodes.DiagnosticIndex = _diagIndex;
         _nodeList.SetProvider(doc.TreeNodes);
 
         _window.SetTitle($"Phoenixml Editor — {doc.DisplayName}");

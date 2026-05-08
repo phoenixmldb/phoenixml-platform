@@ -23,8 +23,17 @@
                                       Tag="{Binding}" />
                         </ContextMenu>
                     </Grid.ContextMenu>
-                    <!-- Name column: indent spacer + chevron toggle + label (TextBlock/TextBox) -->
+                    <!-- Name column: diagnostic glyph + indent spacer + chevron toggle + label (TextBlock/TextBox) -->
                     <StackPanel Grid.Column="0" Orientation="Horizontal">
+                        <!-- Diagnostic overlay: ✕ (error) or ⚠ (warning) in a fixed 16-dip slot.
+                             Empty string + Transparent brush when the row has no diagnostic,
+                             so the slot is reserved but invisible on clean rows. -->
+                        <TextBlock Text="{Binding DiagnosticGlyph}"
+                                   Foreground="{Binding DiagnosticGlyphBrush}"
+                                   Width="16"
+                                   VerticalAlignment="Center"
+                                   FontWeight="Bold"
+                                   Margin="0,0,4,0" />
                         <Border Width="{Binding IndentWidth}" />
                         <Button Width="16" Height="16"
                                 Padding="0"

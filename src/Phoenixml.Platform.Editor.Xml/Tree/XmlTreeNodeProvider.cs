@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using PhoenixmlDb.Core;
 using PhoenixmlDb.Xdm.Nodes;
 using Phoenixml.Platform.Abstractions.Editing;
 
@@ -25,7 +26,7 @@ public sealed class XmlTreeNodeProvider : ITreeNodeProvider
     }
 
     /// <inheritdoc/>
-    public IReadOnlyList<ITreeNode> Roots => [(ITreeNode)new XmlTreeNode(_document, _document.Root)];
+    public IReadOnlyList<ITreeNode> Roots => [(ITreeNode)new XmlTreeNode(_document, _document.Root, this)];
 
     /// <inheritdoc/>
     public IReadOnlyList<ITreeNode> GetChildren(ITreeNode node)
@@ -41,6 +42,22 @@ public sealed class XmlTreeNodeProvider : ITreeNodeProvider
             _ => Array.Empty<ITreeNode>()
         };
     }
+
+    /// <summary>
+    /// Optional diagnostic index. When set, <see cref="XmlTreeNode.IconKey"/> returns
+    /// a diagnostic severity key ("diag.error" / "diag.warning") for nodes that have a
+    /// recorded diagnostic, overriding the default kind-based icon key. Set this before
+    /// (or after) each validation pass; call <see cref="TriggerRefresh"/> to trigger a
+    /// NodeListView rebuild after updating.
+    /// </summary>
+    public IDiagnosticIndex? DiagnosticIndex { get; set; }
+
+    /// <summary>
+    /// Manually fires the <see cref="Changed"/> event, causing any bound view (e.g.
+    /// <c>NodeListView</c>) to rebuild its rows. Call this after updating
+    /// <see cref="DiagnosticIndex"/> so IconKey changes propagate to the UI.
+    /// </summary>
+    public void TriggerRefresh() => Changed?.Invoke();
 
     /// <inheritdoc/>
     // Raised when the underlying document mutates. Fires on every Document.Changed event
@@ -59,7 +76,7 @@ public sealed class XmlTreeNodeProvider : ITreeNodeProvider
         {
             var child = _document.Resolve(childId);
             if (child is not null)
-                children.Add(new XmlTreeNode(_document, child));
+                children.Add(new XmlTreeNode(_document, child, this));
         }
         return children;
     }
@@ -73,7 +90,7 @@ public sealed class XmlTreeNodeProvider : ITreeNodeProvider
         {
             var attr = _document.Resolve(attrId);
             if (attr is not null)
-                children.Add(new XmlTreeNode(_document, attr));
+                children.Add(new XmlTreeNode(_document, attr, this));
         }
 
         // Determine if any child is an element. Text-only elements (and ones with only
@@ -98,7 +115,7 @@ public sealed class XmlTreeNodeProvider : ITreeNodeProvider
             {
                 var child = _document.Resolve(childId);
                 if (child is not null)
-                    children.Add(new XmlTreeNode(_document, child));
+                    children.Add(new XmlTreeNode(_document, child, this));
             }
         }
 

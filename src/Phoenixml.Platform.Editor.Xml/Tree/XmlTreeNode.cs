@@ -11,16 +11,23 @@ namespace Phoenixml.Platform.Editor.Xml.Tree;
 public sealed class XmlTreeNode : ITreeNode
 {
     private readonly XmlDocument _document;
+    private readonly XmlTreeNodeProvider? _provider;
 
     /// <summary>
     /// Initializes a new <see cref="XmlTreeNode"/> for the given XDM node.
     /// </summary>
     /// <param name="document">The owning XML document.</param>
     /// <param name="node">The XDM node to wrap.</param>
-    internal XmlTreeNode(XmlDocument document, XdmNode node)
+    /// <param name="provider">
+    /// The provider that created this node. Used to read the current
+    /// <see cref="XmlTreeNodeProvider.DiagnosticIndex"/> when computing
+    /// <see cref="IconKey"/>. May be <see langword="null"/> in test contexts.
+    /// </param>
+    internal XmlTreeNode(XmlDocument document, XdmNode node, XmlTreeNodeProvider? provider = null)
     {
         _document = document;
         XdmNode = node;
+        _provider = provider;
     }
 
     /// <summary>The wrapped XDM node.</summary>
@@ -64,16 +71,34 @@ public sealed class XmlTreeNode : ITreeNode
     }
 
     /// <inheritdoc/>
-    public string? IconKey => XdmNode.NodeKind switch
+    /// <remarks>
+    /// When a <see cref="XmlTreeNodeProvider.DiagnosticIndex"/> is set on the owning
+    /// provider and this node has a recorded diagnostic, returns <c>"diag.error"</c> or
+    /// <c>"diag.warning"</c> instead of the normal kind-based key. This is consumed by
+    /// <c>NodeListView</c>'s <c>DiagnosticGlyph</c> computed property to render ✕/⚠
+    /// inline overlays.
+    /// </remarks>
+    public string? IconKey
     {
-        XdmNodeKind.Document => "icon.xml.document",
-        XdmNodeKind.Element => "icon.xml.element",
-        XdmNodeKind.Attribute => "icon.xml.attribute",
-        XdmNodeKind.Text => "icon.xml.text",
-        XdmNodeKind.Comment => "icon.xml.comment",
-        XdmNodeKind.ProcessingInstruction => "icon.xml.pi",
-        _ => null
-    };
+        get
+        {
+            if (_provider?.DiagnosticIndex?.GetSeverity(XdmNode.Id) is DiagnosticSeverity sev)
+            {
+                return sev == DiagnosticSeverity.Error ? "diag.error" : "diag.warning";
+            }
+
+            return XdmNode.NodeKind switch
+            {
+                XdmNodeKind.Document => "icon.xml.document",
+                XdmNodeKind.Element => "icon.xml.element",
+                XdmNodeKind.Attribute => "icon.xml.attribute",
+                XdmNodeKind.Text => "icon.xml.text",
+                XdmNodeKind.Comment => "icon.xml.comment",
+                XdmNodeKind.ProcessingInstruction => "icon.xml.pi",
+                _ => null
+            };
+        }
+    }
 
     /// <inheritdoc/>
     public bool HasChildren => XdmNode switch
