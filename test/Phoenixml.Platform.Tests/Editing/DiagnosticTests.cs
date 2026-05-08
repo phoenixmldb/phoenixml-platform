@@ -1,3 +1,4 @@
+using PhoenixmlDb.Core;
 using Phoenixml.Platform.Abstractions.Editing;
 using Xunit;
 
@@ -8,12 +9,12 @@ file sealed class TestDiagnostic(
     DiagnosticSeverity severity,
     string message,
     string? code = null,
-    object? location = null) : IDiagnostic
+    DiagnosticLocation? location = null) : IDiagnostic
 {
     public DiagnosticSeverity Severity { get; } = severity;
     public string? Code { get; } = code;
     public string Message { get; } = message;
-    public object? Location { get; } = location;
+    public DiagnosticLocation? Location { get; } = location;
 }
 
 public class DiagnosticTests
@@ -71,9 +72,12 @@ public class DiagnosticTests
     [Fact]
     public void LocationIsPreservedWhenProvided()
     {
-        var loc = new { Line = 5, Column = 3 };
+        var loc = new DiagnosticLocation(new NodeId(42), Line: 5, Column: 3);
         var d = new TestDiagnostic(DiagnosticSeverity.Error, "msg", location: loc);
-        Assert.Same(loc, d.Location);
+        Assert.Equal(loc, d.Location);
+        Assert.Equal(new NodeId(42), d.Location!.NodeId);
+        Assert.Equal(5, d.Location.Line);
+        Assert.Equal(3, d.Location.Column);
     }
 
     [Fact]

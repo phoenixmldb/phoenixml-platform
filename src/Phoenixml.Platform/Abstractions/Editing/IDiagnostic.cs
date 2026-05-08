@@ -1,3 +1,5 @@
+using PhoenixmlDb.Core;
+
 namespace Phoenixml.Platform.Abstractions.Editing;
 
 /// <summary>
@@ -16,8 +18,19 @@ public interface IDiagnostic
     string Message { get; }
 
     /// <summary>
-    /// Document location reference. Opaque to the view — the view passes it back to
-    /// the document on click. Document interprets it (line/col, XPath, XDM-id, etc.).
+    /// Structured location tying this diagnostic to an XDM node and its source
+    /// coordinates. Null when the error is structural and lacks a node anchor
+    /// (e.g. a document-level well-formedness failure).
     /// </summary>
-    object? Location { get; }
+    DiagnosticLocation? Location { get; }
 }
+
+/// <summary>
+/// Associates a diagnostic with a specific XDM node by its <see cref="NodeId"/>,
+/// plus the parse-time line and column from the serialized form that triggered
+/// the validation error.
+/// </summary>
+/// <param name="NodeId">The XDM node id of the closest matching node.</param>
+/// <param name="Line">One-based line number in the serialized document.</param>
+/// <param name="Column">One-based column number in the serialized document.</param>
+public sealed record DiagnosticLocation(NodeId NodeId, int Line, int Column);
