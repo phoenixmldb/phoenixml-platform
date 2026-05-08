@@ -14,6 +14,7 @@ internal sealed class EditorSettingsStore
 
     private readonly string _settingsPath;
     private EditorSettings _settings = new();
+    private readonly SemaphoreSlim _saveLock = new(1, 1);
 
     /// <summary>
     /// Initialises the store using the default platform settings path for
@@ -107,6 +108,11 @@ internal sealed class EditorSettingsStore
     /// </summary>
     internal async Task SaveAsync()
     {
+        // Serialize concurrent saves so a fire-and-forget call from UpdateExplorerWidth
+        // (or RecordRecentFile) doesn't collide with another in-flight save on the
+        // same .tmp file. Without this, two writes can race on the temporary file and
+        // File.Move can silently lose the loser's content.
+        await _saveLock.WaitAsync().ConfigureAwait(false);
         try
         {
             // Ensure the directory exists (relevant when using an injected test path).
@@ -119,5 +125,9 @@ internal sealed class EditorSettingsStore
         }
         catch (IOException) { }
         catch (UnauthorizedAccessException) { }
+        finally
+        {
+            _saveLock.Release();
+        }
     }
 }
