@@ -13,7 +13,11 @@
          on the captured Avalonia UI SynchronizationContext so continuations can mutate the
          view tree. Following CA2007 here is what caused the first run's "Call from invalid
          thread" crash — the suppression is deliberate. -->
-    <NoWarn>$(NoWarn);CA1515;NU1903;CA2007</NoWarn>
+    <!-- CA1001/CA2000: EditorMainWindow owns EditorValidationService (IDisposable) but both
+         live for the application lifetime — disposal on process exit is correct behaviour
+         for a desktop app. Making App or EditorMainWindow implement IDisposable cascades
+         through Avalonia's sealed type hierarchy without benefit. -->
+    <NoWarn>$(NoWarn);CA1515;NU1903;CA2007;CA1001;CA2000</NoWarn>
     <NuGetAuditSuppress>https://github.com/advisories/GHSA-xrw6-gwf8-vvr9</NuGetAuditSuppress>
   </PropertyGroup>
   <ItemGroup>

@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Phoenixml.Editor.Commands;
 using Phoenixml.Editor.Menus;
 using Phoenixml.Editor.Settings;
+using Phoenixml.Editor.Validation;
 using Phoenixml.Editor.ViewModels;
 using Phoenixml.Platform.Abstractions.Documents;
 using Phoenixml.Platform.Editor.Xml;
@@ -31,6 +32,7 @@ public sealed class EditorMainWindow
     private readonly MainWindow _window;
     private readonly EditorState _state = new();
     private readonly NodeListView _nodeList;
+    private readonly EditorValidationService _validation;
     private IDocument? _subscribedDocument;
 
     /// <summary>
@@ -49,6 +51,7 @@ public sealed class EditorMainWindow
         // subscribes to Settings.Changed and will rebuild once the load completes.
         _ = Settings.LoadAsync(CancellationToken.None);
 
+        _validation = new EditorValidationService(new SchemaResolver(Settings));
         _nodeList = new NodeListView();
 
         // Wire F2 inline rename — routes to element or attribute command based on node kind.
@@ -158,10 +161,31 @@ public sealed class EditorMainWindow
             collapseButton.Content = explorer.IsVisible ? "◀" : "▶";
         };
 
-        // Order: menu, toolbar, addressBar (top); explorerColumn (left); nodeList fills.
+        // Build the ProblemsView and dock it at the bottom (120 dip).
+        var problems = new ProblemsView();
+        var problemsContainer = new DockPanel { Height = 120 };
+        DockPanel.SetDock(problemsContainer, Dock.Bottom);
+        problemsContainer.Children.Add(problems);
+
+        // Wire validation: track the active document and push diagnostics to the view.
+        _state.ActiveDocumentChanged += doc => _validation.SetActiveDocument(doc);
+        _validation.DiagnosticsChanged += diags => problems.SetDiagnostics(diags);
+
+        // Wire click-to-navigate: double-click a diagnostic row → select the first matching element.
+        problems.DiagnosticActivated += diag =>
+        {
+            if (_state.ActiveDocument is not XmlDocument doc) return;
+            var elementName = ExtractQuotedElementName(diag.Message);
+            if (elementName is null) return;
+            var found = FindFirstElementByName(doc, elementName);
+            if (found is not null) _nodeList.SelectById(found.Id.ToString());
+        };
+
+        // Order: menu, toolbar, addressBar (top); problemsContainer (bottom); explorerColumn (left); nodeList fills.
         _rootPanel.Children.Add(menu);
         _rootPanel.Children.Add(toolbar);
         _rootPanel.Children.Add(addressBar);
+        _rootPanel.Children.Add(problemsContainer);
         _rootPanel.Children.Add(explorerColumn);
         _rootPanel.Children.Add(_nodeList);
 
@@ -285,6 +309,55 @@ public sealed class EditorMainWindow
             if (doc.Resolve(childId) is XdmElement) return false;
         }
         return true;
+    }
+
+    /// <summary>
+    /// Extracts the first single-quoted token from a diagnostic message.
+    /// XSD validator messages commonly quote element/attribute names as <c>'foo'</c>.
+    /// Returns <see langword="null"/> when no such token is present.
+    /// </summary>
+    /// <remarks>
+    /// Best-effort: .NET's <c>XmlSchemaValidator</c> messages vary in format; not all
+    /// mention the offending node name in single quotes. Misses are silently ignored.
+    /// </remarks>
+    private static string? ExtractQuotedElementName(string message)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(
+            message, "'([A-Za-z_][\\w.-]*)'");
+        return match.Success ? match.Groups[1].Value : null;
+    }
+
+    /// <summary>
+    /// Breadth-first search for the first <see cref="XdmElement"/> whose
+    /// <see cref="XdmElement.LocalName"/> equals <paramref name="localName"/>.
+    /// Returns <see langword="null"/> when no match is found.
+    /// </summary>
+    /// <remarks>
+    /// Precise diagnostic-to-node mapping (including line/column source positions) is
+    /// deferred to Plan 13. This BFS gives a useful first match in the common case
+    /// where the schema error names a single element type.
+    /// </remarks>
+    private static XdmElement? FindFirstElementByName(XmlDocument doc, string localName)
+    {
+        var docElementId = doc.Root.DocumentElement;
+        if (docElementId is null) return null;
+
+        var queue = new Queue<PhoenixmlDb.Core.NodeId>();
+        queue.Enqueue(docElementId.Value);
+
+        while (queue.Count > 0)
+        {
+            var id = queue.Dequeue();
+            if (doc.Resolve(id) is not XdmElement el) continue;
+
+            if (string.Equals(el.LocalName, localName, StringComparison.Ordinal))
+                return el;
+
+            foreach (var childId in el.Children)
+                queue.Enqueue(childId);
+        }
+
+        return null;
     }
 }
 
