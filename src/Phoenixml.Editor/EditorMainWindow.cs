@@ -209,7 +209,9 @@ public sealed class EditorMainWindow
         {
             if (diag.Location is DiagnosticLocation loc)
             {
-                _nodeList.SelectById(loc.NodeId.ToString());
+                // Use EnsureVisibleAndSelect so collapsed ancestors expand on the way to the
+                // offending node — diagnostics often target nodes deep inside a folded tree.
+                _nodeList.EnsureVisibleAndSelect(loc.NodeId.ToString());
                 return;
             }
 
@@ -217,7 +219,7 @@ public sealed class EditorMainWindow
             var elementName = ExtractQuotedElementName(diag.Message);
             if (elementName is null) return;
             var found = FindFirstElementByName(doc, elementName);
-            if (found is not null) _nodeList.SelectById(found.Id.ToString());
+            if (found is not null) _nodeList.EnsureVisibleAndSelect(found.Id.ToString());
         };
 
         // Order: menu, toolbar, addressBar (top); problemsContainer (bottom); innerGrid fills.

@@ -149,6 +149,42 @@ public sealed partial class NodeListView : UserControl
     }
 
     /// <summary>
+    /// Expands all ancestors of the node with the given <paramref name="id"/> so it becomes
+    /// visible, then selects it. Walks the provider tree depth-first looking for the target;
+    /// along the path back from the match, marks each ancestor expanded. Rebuilds the flat-row
+    /// list and selects. No-op if the id is not found in the tree.
+    /// </summary>
+    public void EnsureVisibleAndSelect(string id)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        if (_provider is null) return;
+        foreach (var root in _provider.Roots)
+        {
+            if (TryExpandPathTo(root, id))
+            {
+                Rebuild();
+                SelectById(id);
+                return;
+            }
+        }
+    }
+
+    private bool TryExpandPathTo(ITreeNode current, string targetId)
+    {
+        if (current.Id == targetId) return true;
+        if (_provider is null) return false;
+        foreach (var child in _provider.GetChildren(current))
+        {
+            if (TryExpandPathTo(child, targetId))
+            {
+                _expansionState[current.Id] = true;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
     /// Marks the row with the given <paramref name="id"/> as expanded. Hosts call this before
     /// inserting a child so the new row becomes visible after the resulting Rebuild. No-op if
     /// the id is unknown.
