@@ -9,6 +9,7 @@ using Phoenixml.Editor.Settings;
 using Phoenixml.Editor.Validation;
 using Phoenixml.Editor.ViewModels;
 using Phoenixml.Platform.Abstractions.Documents;
+using Phoenixml.Platform.Abstractions.Editing;
 using Phoenixml.Platform.Editor.Xml;
 using Phoenixml.Platform.Editor.Xml.Editing;
 using Phoenixml.Platform.Editor.Xml.Tree;
@@ -189,9 +190,18 @@ public sealed class EditorMainWindow
         _state.ActiveDocumentChanged += doc => _validation.SetActiveDocument(doc);
         _validation.DiagnosticsChanged += diags => problems.SetDiagnostics(diags);
 
-        // Wire click-to-navigate: double-click a diagnostic row → select the first matching element.
+        // Wire click-to-navigate: double-click a diagnostic row → select the offending node.
+        // Precise path: use the parsed Location.NodeId from Plan 13 (B2/B3).
+        // Fallback path: regex heuristic from Plan 12 for diagnostics whose Location
+        // couldn't be mapped (e.g. document-level errors with no associated node).
         problems.DiagnosticActivated += diag =>
         {
+            if (diag.Location is DiagnosticLocation loc)
+            {
+                _nodeList.SelectById(loc.NodeId.ToString());
+                return;
+            }
+
             if (_state.ActiveDocument is not XmlDocument doc) return;
             var elementName = ExtractQuotedElementName(diag.Message);
             if (elementName is null) return;
