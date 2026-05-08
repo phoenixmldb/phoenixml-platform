@@ -88,6 +88,12 @@ Ordered by friction.
 - [x] ~~**No recent files menu.**~~ File → Open Recent + persisted via `SettingsService`.
 - [x] ~~**No address bar / file path indicator.**~~ Already shipped in Plan 10; v0.5 extends it to accept folder paths too.
 
+### Resolved 2026-05-07 (Plan 12)
+
+- [x] ~~**No problems pane / schema validation feedback.**~~ Background validation + ProblemsView wiring + best-effort click-to-navigate. See [`editor-v0.6-walkthrough.md`](./editor-v0.6-walkthrough.md).
+- [x] ~~**Save-on-close prompt for dirty documents.**~~ Save All / Discard All / Cancel modal.
+- [x] ~~**No splitter between explorer and node-list columns.**~~ GridSplitter with persisted width.
+
 ### High friction
 
 - [ ] **No way to view multiple documents simultaneously.** Tabs state exists but no renderer. Either fix the TabStrip layout issue (likely a measure/arrange interaction with our outer DockPanel + LastChildFill setup), build a custom `StackPanel`-with-explicit-widths tab strip, or pivot to a split-editor layout (VSCode-style).
