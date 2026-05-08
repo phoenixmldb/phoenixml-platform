@@ -83,6 +83,26 @@ internal sealed class EditorSettingsStore
     }
 
     /// <summary>
+    /// Updates the persisted file-explorer column width. Sub-pixel changes (less than
+    /// 1 dip) are ignored to avoid spurious saves on every drag tick.
+    /// Raises <see cref="Changed"/> and starts a fire-and-forget background save.
+    /// </summary>
+    /// <param name="width">New column width in device-independent pixels.</param>
+    public void UpdateExplorerWidth(double width)
+    {
+        if (Math.Abs(width - _settings.ExplorerWidth) < 1) return;
+
+        _settings = new EditorSettings
+        {
+            RecentFiles = _settings.RecentFiles,
+            PerDocumentSchema = _settings.PerDocumentSchema,
+            ExplorerWidth = width,
+        };
+        Changed?.Invoke();
+        _ = SaveAsync();            // fire-and-forget
+    }
+
+    /// <summary>
     /// Persists the current settings to disk. Can be awaited directly in tests.
     /// </summary>
     internal async Task SaveAsync()

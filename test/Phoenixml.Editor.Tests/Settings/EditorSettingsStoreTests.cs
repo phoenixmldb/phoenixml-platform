@@ -113,4 +113,53 @@ public sealed class EditorSettingsStoreTests : IDisposable
         Assert.Equal("/tmp/y.xml", store2.Settings.RecentFiles[0]);
         Assert.Equal("/tmp/x.xml", store2.Settings.RecentFiles[1]);
     }
+
+    // -----------------------------------------------------------------------
+    // UpdateExplorerWidth behaviour
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void UpdateExplorerWidthChangesSettingsAndFiresChanged()
+    {
+        var store = new EditorSettingsStore(TempPath("ew-change"));
+        var changeCount = 0;
+        store.Changed += () => changeCount++;
+
+        store.UpdateExplorerWidth(400);
+
+        Assert.Equal(400, store.Settings.ExplorerWidth);
+        Assert.Equal(1, changeCount);
+    }
+
+    [Fact]
+    public void UpdateExplorerWidthSubPixelChangeIsNoOp()
+    {
+        var store = new EditorSettingsStore(TempPath("ew-subpixel"));
+        // Record an initial width that differs from the default by more than 1 dip.
+        store.UpdateExplorerWidth(250);
+
+        var changeCount = 0;
+        store.Changed += () => changeCount++;
+
+        // A sub-pixel difference from 250 should be ignored.
+        store.UpdateExplorerWidth(250.4);
+        store.UpdateExplorerWidth(250.5);
+
+        Assert.Equal(0, changeCount);
+    }
+
+    [Fact]
+    public async Task RoundTripPreservesExplorerWidth()
+    {
+        var path = TempPath("ew-roundtrip");
+        var store1 = new EditorSettingsStore(path);
+        store1.UpdateExplorerWidth(320);
+
+        await store1.SaveAsync().ConfigureAwait(true);
+
+        var store2 = new EditorSettingsStore(path);
+        await store2.LoadAsync(TestContext.Current.CancellationToken).ConfigureAwait(true);
+
+        Assert.Equal(320, store2.Settings.ExplorerWidth);
+    }
 }

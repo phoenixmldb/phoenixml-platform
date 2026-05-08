@@ -139,26 +139,42 @@ public sealed class EditorMainWindow
         DockPanel.SetDock(toolbar, Dock.Top);
         var addressBar = new Phoenixml.Editor.Toolbar.EditorAddressBar(this);
         DockPanel.SetDock(addressBar, Dock.Top);
-        Explorer = new Phoenixml.Editor.Explorer.EditorExplorer(this) { Width = 250 };
-        var explorer = Explorer;
-        var collapseButton = new Button
+        // Build the inner Grid: Col 0 = explorer, Col 1 = 4-dip splitter, Col 2 = node list.
+        // The initial explorer width is read from the default settings value (250 dip).
+        // LoadAsync is in-flight at this point; the persisted width applies on the next
+        // launch once the round-trip save completes. Documented v0.6 trade-off.
+        var initialExplorerWidth = Settings.Settings.ExplorerWidth;
+        var innerGrid = new Grid();
+        innerGrid.ColumnDefinitions.Add(
+            new ColumnDefinition(initialExplorerWidth, GridUnitType.Pixel) { MinWidth = 0 });
+        innerGrid.ColumnDefinitions.Add(new ColumnDefinition(4, GridUnitType.Pixel));
+        innerGrid.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
+
+        Explorer = new Phoenixml.Editor.Explorer.EditorExplorer(this);
+        Grid.SetColumn(Explorer, 0);
+        innerGrid.Children.Add(Explorer);
+
+        // GridSplitter between Col 0 (explorer) and Col 2 (node list).
+        // Dragging to ~0 effectively hides the explorer; no separate collapse button
+        // is provided in v0.6 — the splitter is the resize affordance.
+        var splitter = new GridSplitter
         {
-            Content = "◀",
-            Width = 22,
-            Padding = new Thickness(0),
-            Background = Avalonia.Media.Brushes.Transparent,
-            Foreground = Avalonia.Media.Brushes.White,
+            Width = 4,
+            Background = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#4A4A4F")),
+            ResizeDirection = GridResizeDirection.Columns,
+            ResizeBehavior = GridResizeBehavior.PreviousAndNext,
         };
-        ToolTip.SetTip(collapseButton, "Toggle file explorer");
-        var explorerColumn = new DockPanel { LastChildFill = true };
-        DockPanel.SetDock(collapseButton, Dock.Right);
-        explorerColumn.Children.Add(collapseButton);
-        explorerColumn.Children.Add(explorer);
-        DockPanel.SetDock(explorerColumn, Dock.Left);
-        collapseButton.Click += (_, _) =>
+        Grid.SetColumn(splitter, 1);
+        innerGrid.Children.Add(splitter);
+
+        Grid.SetColumn(_nodeList, 2);
+        innerGrid.Children.Add(_nodeList);
+
+        // Persist the explorer width each time the user finishes a drag.
+        splitter.DragCompleted += (_, _) =>
         {
-            explorer.IsVisible = !explorer.IsVisible;
-            collapseButton.Content = explorer.IsVisible ? "◀" : "▶";
+            var w = innerGrid.ColumnDefinitions[0].ActualWidth;
+            Settings.UpdateExplorerWidth(w);
         };
 
         // Build the ProblemsView and dock it at the bottom (120 dip).
@@ -181,13 +197,15 @@ public sealed class EditorMainWindow
             if (found is not null) _nodeList.SelectById(found.Id.ToString());
         };
 
-        // Order: menu, toolbar, addressBar (top); problemsContainer (bottom); explorerColumn (left); nodeList fills.
+        // Order: menu, toolbar, addressBar (top); problemsContainer (bottom); innerGrid fills.
+        // innerGrid contains the explorer (Col 0), the GridSplitter (Col 1), and
+        // the node list (Col 2) so both the explorer and the node list share the
+        // remaining space after the top/bottom dock areas are consumed.
         _rootPanel.Children.Add(menu);
         _rootPanel.Children.Add(toolbar);
         _rootPanel.Children.Add(addressBar);
         _rootPanel.Children.Add(problemsContainer);
-        _rootPanel.Children.Add(explorerColumn);
-        _rootPanel.Children.Add(_nodeList);
+        _rootPanel.Children.Add(innerGrid);
 
         _window.SetContent(_rootPanel);
 
