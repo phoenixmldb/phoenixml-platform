@@ -1,8 +1,10 @@
+using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Phoenixml.Editor.Commands;
 using Phoenixml.Editor.Menus;
+using Phoenixml.Editor.Quit;
 using Phoenixml.Editor.Settings;
 using Phoenixml.Editor.Validation;
 using Phoenixml.Editor.ViewModels;
@@ -237,6 +239,47 @@ public sealed class EditorMainWindow
 
         _window.SetTitle("Phoenixml Editor");
 
+        // Hook window close: if any tabs have unsaved changes, prompt the user before
+        // allowing the close to proceed.
+        _window.Closing += async (_, args) =>
+        {
+            var dirtyTabs = _state.Tabs.Where(t => t.Document.IsDirty).ToList();
+            if (dirtyTabs.Count == 0) return;  // nothing unsaved — allow close
+
+            args.Cancel = true;  // pause the close while we ask the user
+
+            var dialog = new DirtyDocsConfirmDialog(
+                dirtyTabs.Select(t => t.Document.DisplayName).ToList());
+            await dialog.ShowDialog(_window);
+
+            switch (dialog.Outcome)
+            {
+                case DirtyDocsConfirmDialog.Result.SaveAll:
+                    foreach (var t in dirtyTabs)
+                    {
+                        if (t.Document.Source is null) continue;  // never-saved — skip for v0.6
+                        try { await t.Document.SaveAsync(CancellationToken.None); }
+                        catch (System.IO.IOException) { /* save failed — continue silently for v0.6 */ }
+                        catch (UnauthorizedAccessException) { }
+                    }
+                    // Re-trigger close. Dirty docs that were saved are now clean; the second
+                    // pass through this handler returns early (Count == 0) and Cancel stays false.
+                    _window.Close();
+                    break;
+
+                case DirtyDocsConfirmDialog.Result.DiscardAll:
+                    // MarkClean is a small lie: we're not persisting. Safe because the
+                    // editor exits immediately; the second pass sees no dirty tabs.
+                    foreach (var t in dirtyTabs) t.Document.MarkClean();
+                    _window.Close();
+                    break;
+
+                case DirtyDocsConfirmDialog.Result.Cancel:
+                    // args.Cancel = true already set — window stays open.
+                    break;
+            }
+        };
+
         _state.ActiveDocumentChanged += OnActiveDocumentChanged;
     }
 
@@ -268,11 +311,22 @@ public sealed class EditorMainWindow
     {
         var doc = _state.ActiveDocument;
         var label = doc is null ? "(no document)" : $"{doc.DisplayName}";
-        var segment = new StatusBarSegment(
-            Id: "active-document",
-            Label: label,
-            Order: 0);
-        _window.SetStatusSegments(new[] { segment }, EmptyServiceProvider.Instance);
+        var dirtyCount = _state.Tabs.Count(t => t.Document.IsDirty);
+
+        var segments = new List<StatusBarSegment>
+        {
+            new(Id: "active-document", Label: label, Order: 0),
+        };
+
+        if (dirtyCount > 0)
+        {
+            segments.Add(new StatusBarSegment(
+                Id: "dirty-count",
+                Label: dirtyCount == 1 ? "1 modified" : $"{dirtyCount} modified",
+                Order: 1));
+        }
+
+        _window.SetStatusSegments(segments, EmptyServiceProvider.Instance);
     }
 
     private readonly DockPanel _rootPanel;
