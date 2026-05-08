@@ -88,6 +88,11 @@ Ordered by friction.
 - [x] ~~**Cannot create text content for empty elements.**~~ `SetTextContentCommand` now allocates an XdmText child on the empty path.
 - [x] ~~**Empty value cells unclickable.**~~ TextBlock now captures hits across full cell.
 
+### Resolved 2026-05-07 (Plan 11)
+
+- [x] ~~**No tabs for multiple documents.**~~ Pivoted to a VSCode-style left explorer column instead. Tabs state machinery preserved (clean abstraction, tests pass) for a future renderer. See [`editor-v0.5-walkthrough.md`](./editor-v0.5-walkthrough.md).
+- [x] ~~**No recent files menu.**~~ File → Open Recent + `SettingsService` persistence.
+
 ### High friction
 
 - [ ] **Insert always appends.** No way to insert at a specific index. Workaround: insert, then manually edit the parent's Children list (not currently exposed). Real fix: "Insert Above" / "Insert Below" context menu items in v0.5.
