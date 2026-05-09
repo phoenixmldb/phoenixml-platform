@@ -89,12 +89,52 @@ internal sealed class EditorExplorer : DockPanel
 
         // Lazy-load children when a folder is expanded.
         _tree.AddHandler(TreeViewItem.ExpandedEvent, OnTreeViewItemExpanded);
+
+        // Tree-level context-menu wiring. Populating items in ContextRequested (rather
+        // than attaching per-row ContextMenu) sidesteps Avalonia's per-control hit-test
+        // quirks: the gesture lands at the tree level, we walk to the TreeViewItem
+        // ancestor of the source visual, and decide what menu (if any) to show.
+        var ctxMenu = new ContextMenu();
+        var applyItem = new MenuItem();
+        applyItem.Click += (_, _) =>
+        {
+            if (applyItem.Tag is string xsdPath)
+                ApplySchemaRequested?.Invoke(xsdPath);
+        };
+        ctxMenu.Items.Add(applyItem);
+        _tree.ContextMenu = ctxMenu;
+
+        _tree.ContextRequested += (_, args) =>
+        {
+            // args.Source is the visual under the cursor when the gesture fires.
+            ExplorerNode? node = null;
+            if (args.Source is Visual src)
+            {
+                var tvi = src.FindAncestorOfType<TreeViewItem>(includeSelf: true);
+                if (tvi?.DataContext is ExplorerNode candidate)
+                    node = candidate;
+            }
+
+            if (node is null || !IsXsd(node.Path))
+            {
+                args.Handled = true;  // suppress menu on non-xsd rows / blank space
+                return;
+            }
+
+            var doc = _window.State.ActiveDocument;
+            applyItem.IsEnabled = doc is not null;
+            applyItem.Header = doc is XmlDocument d
+                ? $"Apply Schema to {d.DisplayName}"
+                : "Apply Schema (no document open)";
+            applyItem.Tag = node.Path;
+            // Don't set args.Handled — let Avalonia show the menu normally.
+        };
     }
 
     private static bool IsXsd(string path) =>
         Path.GetExtension(path).Equals(".xsd", StringComparison.OrdinalIgnoreCase);
 
-    private StackPanel BuildRow(ExplorerNode node)
+    private static StackPanel BuildRow(ExplorerNode node)
     {
         var icon = new TextBlock
         {
@@ -112,31 +152,12 @@ internal sealed class EditorExplorer : DockPanel
         var panel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
+            // Transparent background makes the panel hit-test so context-requested
+            // gestures land on it even though it's visually invisible. Without this,
+            // right-clicks fall through to the parent TreeViewItem.
+            Background = Brushes.Transparent,
             Children = { icon, label },
         };
-
-        // Attach the "Apply Schema to <active-doc>" context menu directly to the row's
-        // visual — only on .xsd files, so right-click on .xml / folders shows nothing.
-        // The closure captures `node.Path` so the click handler always knows which file.
-        if (IsXsd(node.Path))
-        {
-            var apply = new MenuItem();
-            apply.Click += (_, _) => ApplySchemaRequested?.Invoke(node.Path);
-
-            var menu = new ContextMenu();
-            menu.Items.Add(apply);
-            menu.Opening += (_, _) =>
-            {
-                var doc = _window.State.ActiveDocument;
-                apply.IsEnabled = doc is not null;
-                apply.Header = doc is XmlDocument d
-                    ? $"Apply Schema to {d.DisplayName}"
-                    : "Apply Schema (no document open)";
-            };
-
-            panel.ContextMenu = menu;
-        }
-
         return panel;
     }
 
