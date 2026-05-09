@@ -93,7 +93,13 @@ Ordered by friction.
 - [x] ~~**No save-on-close prompt.**~~ Save All / Discard All / Cancel modal on window closing.
 - [x] ~~**Toolbar icons silently invisible.**~~ MaterialIconStyles registered.
 
-### High friction
+### Resolved 2026-05-09 (Plan 13)
+
+- [x] ~~**No source-position tracking on `XdmNode`.**~~ Core 1.1.0 ships `SourceLine` + `SourceColumn`. See [`editor-v0.7-walkthrough.md`](./editor-v0.7-walkthrough.md).
+- [x] ~~**Click-to-navigate is regex-based.**~~ Push-based validator + `DiagnosticLocation` now attach the exact offending NodeId. Click-to-navigate selects precisely; inline ✕ / ⚠ glyphs land on the right rows.
+- [x] ~~**No inline error overlays.**~~ Glyphs in front of offending rows.
+
+### High friction (was)
 
 - [ ] **No source-position tracking on `XdmNode`.** Click-to-navigate is regex+name-only; works on simple "element 'X' is missing" messages but degrades on complex diagnostics. Plan 13 should add line/col fields to XdmNode (Core-side change with downstream impact on XQuery/XSLT runtime).
 - [ ] **No way to view multiple documents simultaneously.** Tabs state exists but no renderer.
