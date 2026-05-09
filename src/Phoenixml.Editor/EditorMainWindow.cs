@@ -37,6 +37,7 @@ public sealed class EditorMainWindow
     private readonly NodeListView _nodeList;
     private readonly EditorValidationService _validation;
     private readonly DiagnosticIndex _diagIndex = new();
+    private readonly SchemaCache _schemaCache = new();
     private IDocument? _subscribedDocument;
 
     /// <summary>
@@ -55,7 +56,7 @@ public sealed class EditorMainWindow
         // subscribes to Settings.Changed and will rebuild once the load completes.
         _ = Settings.LoadAsync(CancellationToken.None);
 
-        _validation = new EditorValidationService(new SchemaResolver(Settings));
+        _validation = new EditorValidationService(new SchemaResolver(Settings, _schemaCache));
         _nodeList = new NodeListView();
 
         // Wire F2 inline rename — routes to element or attribute command based on node kind.

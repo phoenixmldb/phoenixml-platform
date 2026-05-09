@@ -64,7 +64,9 @@ public sealed class SchemaResolverTests : IDisposable
         return new XmlDocument(PlatformDocumentId.New(), source, displayName, result, nsTable);
     }
 
-    private SchemaResolver MakeResolver(Dictionary<string, string>? perDocSchema = null)
+    private SchemaResolver MakeResolver(
+        Dictionary<string, string>? perDocSchema = null,
+        SchemaCache? cache = null)
     {
         var settingsPath = Path.Combine(_tempDir, $"settings-{Guid.NewGuid()}.json");
         var store = new EditorSettingsStore(settingsPath);
@@ -77,7 +79,7 @@ public sealed class SchemaResolverTests : IDisposable
                 store.Settings.PerDocumentSchema.Add(kvp.Key, kvp.Value);
         }
 
-        return new SchemaResolver(store);
+        return new SchemaResolver(store, cache);
     }
 
     // -----------------------------------------------------------------------
@@ -198,5 +200,36 @@ public sealed class SchemaResolverTests : IDisposable
         var result = resolver.Resolve(doc);
 
         Assert.Null(result);
+    }
+
+    [Fact]
+    public void ResolveCachesAcrossCalls()
+    {
+        // Verify that the resolved XmlSchemaSet is served from the cache on subsequent
+        // calls — the XSD file is deleted between the first and second Resolve call.
+        // If the cache were bypassed the second call would return null; cache hit means
+        // the same non-null set is returned.
+        var xsdPath = WriteFile("cached.xsd", SimpleXsd);
+        var xmlPath = WriteFile("cached.xml", $"""
+            <?xml version="1.0"?>
+            <root xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:noNamespaceSchemaLocation="cached.xsd">hello</root>
+            """);
+
+        var doc = MakeDoc(File.ReadAllText(xmlPath), xmlPath);
+        var cache = new SchemaCache();
+        var resolver = MakeResolver(cache: cache);
+
+        // First call — populates the cache.
+        var first = resolver.Resolve(doc);
+        Assert.NotNull(first);
+
+        // Delete the XSD from disk. A cache miss would now return null.
+        File.Delete(xsdPath);
+
+        // Second call — must hit the cache and return the same instance.
+        var second = resolver.Resolve(doc);
+        Assert.NotNull(second);
+        Assert.Same(first, second);
     }
 }

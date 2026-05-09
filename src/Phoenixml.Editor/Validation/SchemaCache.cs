@@ -27,7 +27,15 @@ namespace Phoenixml.Editor.Validation;
 /// </remarks>
 internal sealed class SchemaCache
 {
-    private readonly ConcurrentDictionary<(string Path, long Ticks), XmlSchemaSet> _cache = new();
+    // Primary cache: keyed by (absolutePath, mtime-ticks).
+    // On cache hit the instance is returned without any disk access.
+    // An mtime change produces a new key → fresh load on the next access.
+    private readonly ConcurrentDictionary<(string Path, long Ticks), XmlSchemaSet> _byKey = new();
+
+    // Secondary index: last successfully loaded set keyed by absolute path alone.
+    // Consulted when File.Exists returns false — covers the "file deleted between
+    // validation passes" edge case without changing the primary semantics.
+    private readonly ConcurrentDictionary<string, XmlSchemaSet> _byPath = new();
 
     /// <summary>
     /// Returns a compiled <see cref="XmlSchemaSet"/> for <paramref name="xsdPath"/>,
@@ -37,7 +45,8 @@ internal sealed class SchemaCache
     /// <param name="xsdPath">Absolute or relative path to the XSD file.</param>
     /// <returns>
     /// A compiled <see cref="XmlSchemaSet"/>, or <see langword="null"/> when the file is
-    /// missing, unreadable, or contains invalid schema content.
+    /// missing (and has never been loaded in this session), unreadable, or contains invalid
+    /// schema content.
     /// </returns>
     /// <exception cref="ArgumentException">
     /// Thrown when <paramref name="xsdPath"/> is <see langword="null"/> or empty.
@@ -45,29 +54,41 @@ internal sealed class SchemaCache
     public XmlSchemaSet? GetOrLoad(string xsdPath)
     {
         ArgumentException.ThrowIfNullOrEmpty(xsdPath);
-        if (!File.Exists(xsdPath)) return null;
 
-        var ticks = File.GetLastWriteTimeUtc(xsdPath).Ticks;
-        var key = (Path.GetFullPath(xsdPath), ticks);
+        var absolutePath = Path.GetFullPath(xsdPath);
 
-        if (_cache.TryGetValue(key, out var cached))
+        if (!File.Exists(absolutePath))
+        {
+            // File gone — serve the last known good entry if available.
+            return _byPath.TryGetValue(absolutePath, out var stale) ? stale : null;
+        }
+
+        var ticks = File.GetLastWriteTimeUtc(absolutePath).Ticks;
+        var key = (absolutePath, ticks);
+
+        if (_byKey.TryGetValue(key, out var cached))
             return cached;
 
         XmlSchemaSet? loaded;
         try
         {
-            loaded = EditorXmlSchemaValidator.LoadSchema(xsdPath);
+            loaded = EditorXmlSchemaValidator.LoadSchema(absolutePath);
         }
         catch (XmlSchemaException) { return null; }
         catch (XmlException) { return null; }
         catch (IOException) { return null; }
 
-        _cache[key] = loaded;
+        _byKey[key] = loaded;
+        _byPath[absolutePath] = loaded;
         return loaded;
     }
 
     /// <summary>
     /// Evicts all cached entries.
     /// </summary>
-    public void Clear() => _cache.Clear();
+    public void Clear()
+    {
+        _byKey.Clear();
+        _byPath.Clear();
+    }
 }

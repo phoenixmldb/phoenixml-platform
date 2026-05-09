@@ -4,7 +4,6 @@ using PhoenixmlDb.Core;
 using PhoenixmlDb.Xdm.Nodes;
 using Phoenixml.Editor.Settings;
 using Phoenixml.Platform.Editor.Xml;
-using EditorXmlSchemaValidator = Phoenixml.Platform.Editor.Xml.Validation.XmlSchemaValidator;
 
 namespace Phoenixml.Editor.Validation;
 
@@ -22,15 +21,22 @@ namespace Phoenixml.Editor.Validation;
 internal sealed class SchemaResolver
 {
     private readonly EditorSettingsStore _settings;
+    private readonly SchemaCache _cache;
 
     /// <summary>
-    /// Initializes a new <see cref="SchemaResolver"/> backed by the given settings store.
+    /// Initializes a new <see cref="SchemaResolver"/> backed by the given settings store and
+    /// an optional <see cref="SchemaCache"/>.
     /// </summary>
     /// <param name="settings">The settings store providing per-document schema overrides.</param>
-    public SchemaResolver(EditorSettingsStore settings)
+    /// <param name="cache">
+    /// The schema cache to route all XSD loads through. When <see langword="null"/> a new
+    /// private cache is created — existing callers that omit the argument are unaffected.
+    /// </param>
+    public SchemaResolver(EditorSettingsStore settings, SchemaCache? cache = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         _settings = settings;
+        _cache = cache ?? new SchemaCache();
     }
 
     /// <summary>
@@ -51,9 +57,9 @@ internal sealed class SchemaResolver
             && _settings.Settings.PerDocumentSchema.TryGetValue(path, out var xsdPath)
             && File.Exists(xsdPath))
         {
-            try { return EditorXmlSchemaValidator.LoadSchema(xsdPath); }
-            catch (XmlSchemaException) { /* corrupt schema — fall through */ }
-            catch (IOException) { /* unreadable — fall through */ }
+            var overrideSet = _cache.GetOrLoad(xsdPath);
+            if (overrideSet is not null) return overrideSet;
+            // corrupt or unreadable — fall through to xsi: hints
         }
 
         // 2. xsi: hints on the document root element.
@@ -94,18 +100,13 @@ internal sealed class SchemaResolver
     /// against the directory containing <paramref name="document"/>'s source file.
     /// Returns <see langword="null"/> on any error.
     /// </summary>
-    private static XmlSchemaSet? TryLoad(string location, XmlDocument document)
+    private XmlSchemaSet? TryLoad(string location, XmlDocument document)
     {
         var docDir = Path.GetDirectoryName(document.Source?.LocalPath);
         var full = Path.IsPathRooted(location) || docDir is null
             ? location
             : Path.Combine(docDir, location);
 
-        if (!File.Exists(full)) return null;
-
-        try { return EditorXmlSchemaValidator.LoadSchema(full); }
-        catch (XmlSchemaException) { return null; }
-        catch (System.Xml.XmlException) { return null; }
-        catch (IOException) { return null; }
+        return _cache.GetOrLoad(full);
     }
 }
