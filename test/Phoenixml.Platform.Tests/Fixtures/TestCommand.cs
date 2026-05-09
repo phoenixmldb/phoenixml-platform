@@ -1,3 +1,4 @@
+using NodeId = PhoenixmlDb.Core.NodeId;
 using Phoenixml.Platform.Abstractions.Documents;
 
 namespace Phoenixml.Platform.Tests.Fixtures;
@@ -20,6 +21,8 @@ internal sealed class TestCommand : IEditorCommand
         if (document is TestDocument td) td.AppliedOperations.Add($"revert:{Description}");
         OnRevert?.Invoke(document);
     }
+
+    public IEnumerable<NodeId> ReferencedNodeIds => Array.Empty<NodeId>();
 
     public bool TryMergeWith(IEditorCommand previous, out IEditorCommand merged)
     {

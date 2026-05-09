@@ -1,4 +1,7 @@
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Phoenixml.Platform.Abstractions.Editing;
@@ -11,8 +14,10 @@ namespace Phoenixml.Platform.Editing;
 /// Vocabulary packages supply concrete providers; this control has no XML/XSLT knowledge.
 /// </summary>
 /// <remarks>
-/// v0.3 ships a working tree. Virtualization, drag-and-drop, in-place rename, and accessibility
-/// hints are deferred to a later iteration (Plan 6).
+/// v0.3 ships a working tree. Virtualization, drag-and-drop, and accessibility hints are
+/// deferred to a later iteration (Plan 6). F2 inline rename is available as of v0.2 UX round.
+/// Auto-focus of the edit TextBox on F2 is a polish item — the TextBox appears under the
+/// cursor and the user can click to type.
 /// </remarks>
 public sealed partial class TreeEditorView : UserControl
 {
@@ -35,6 +40,12 @@ public sealed partial class TreeEditorView : UserControl
 
     /// <summary>Raised when the user double-clicks a node.</summary>
     public event Action<ITreeNode>? NodeActivated;
+
+    /// <summary>
+    /// Raised when the user commits an F2 inline rename (Enter or LostFocus with a changed name).
+    /// The first argument is the node being renamed; the second is the new label text.
+    /// </summary>
+    public event Action<ITreeNode, string>? NodeRenameRequested;
 #pragma warning restore CA1003
 
     /// <summary>
@@ -86,8 +97,18 @@ public sealed partial class TreeEditorView : UserControl
             return;
         }
 
+        // Auto-expand the root level so users see the document's top-level structure
+        // immediately on Open without hunting for the small expand chevron. Deeper nodes
+        // are still click-to-expand. (One root node almost always has just one or two
+        // children — expanding one more level too keeps the UX informative.)
         host.ItemsSource = _provider.Roots
-            .Select(n => new TreeNodeViewModel(n, _provider))
+            .Select(n =>
+            {
+                var vm = new TreeNodeViewModel(n, _provider) { IsExpanded = true };
+                foreach (var child in vm.Children)
+                    child.IsExpanded = true;
+                return vm;
+            })
             .ToList();
     }
 
@@ -107,22 +128,105 @@ public sealed partial class TreeEditorView : UserControl
         if (sender is TreeView tv && tv.SelectedItem is TreeNodeViewModel row)
             NodeActivated?.Invoke(row.Node);
     }
+
+    private void TreeHost_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.F2 && sender is TreeView tv && tv.SelectedItem is TreeNodeViewModel row)
+        {
+            row.EditingText = row.Label;
+            row.IsEditing = true;
+            e.Handled = true;
+        }
+    }
+
+    private void EditingBox_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox tb || tb.DataContext is not TreeNodeViewModel row) return;
+        if (e.Key == Key.Enter)
+        {
+            CommitEdit(row, tb.Text ?? string.Empty);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            row.IsEditing = false;
+            e.Handled = true;
+        }
+    }
+
+    private void EditingBox_LostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox tb && tb.DataContext is TreeNodeViewModel row && row.IsEditing)
+            CommitEdit(row, tb.Text ?? string.Empty);
+    }
+
+    private void CommitEdit(TreeNodeViewModel row, string newLabel)
+    {
+        row.IsEditing = false;
+        var trimmed = newLabel.Trim();
+        if (string.IsNullOrEmpty(trimmed) || trimmed == row.Label) return;
+        NodeRenameRequested?.Invoke(row.Node, trimmed);
+    }
 }
 
 /// <summary>
 /// View-model wrapper for a single tree node. Children are fetched lazily via the provider
 /// when Avalonia first requests the <see cref="Children"/> collection.
+/// Implements <see cref="INotifyPropertyChanged"/> so Avalonia binding tracks
+/// <see cref="IsEditing"/> and <see cref="EditingText"/> changes during F2 inline rename.
 /// </summary>
-internal sealed class TreeNodeViewModel
+internal sealed class TreeNodeViewModel : INotifyPropertyChanged
 {
     private readonly ITreeNodeProvider _provider;
     private IReadOnlyList<TreeNodeViewModel>? _children;
+    private bool _isEditing;
+    private string _editingText = string.Empty;
 
     /// <summary>The underlying domain node.</summary>
     public ITreeNode Node { get; }
 
     /// <summary>Display label (forwarded from <see cref="Node"/>).</summary>
     public string Label => Node.Label;
+
+    /// <summary>Whether the corresponding TreeViewItem should render expanded.
+    /// Bound two-way via the TreeView's IsExpanded style binding.</summary>
+    public bool IsExpanded { get; set; }
+
+    /// <summary>
+    /// Whether this row is in inline-edit mode (TextBox visible, TextBlock hidden).
+    /// Set to <see langword="true"/> on F2; cleared on Enter, Escape, or LostFocus.
+    /// </summary>
+    public bool IsEditing
+    {
+        get => _isEditing;
+        set
+        {
+            if (_isEditing == value) return;
+            _isEditing = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>
+    /// The text shown in the inline edit TextBox. Initialized to <see cref="Label"/>
+    /// when F2 is pressed so the user edits the current name, not a blank field.
+    /// </summary>
+    public string EditingText
+    {
+        get => _editingText;
+        set
+        {
+            if (_editingText == value) return;
+            _editingText = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <inheritdoc/>
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void OnPropertyChanged([CallerMemberName] string? name = null)
+        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 
     /// <summary>
     /// Lazily-loaded children. On first access, calls <see cref="ITreeNodeProvider.GetChildren"/>

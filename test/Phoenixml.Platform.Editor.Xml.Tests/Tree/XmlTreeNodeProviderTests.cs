@@ -2,10 +2,13 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using PhoenixmlDb.Core;
 using PhoenixmlDb.Xdm.Nodes;
 using Phoenixml.Platform.Editor.Xml;
+using Phoenixml.Platform.Editor.Xml.Editing;
 using Phoenixml.Platform.Editor.Xml.Tree;
 using Xunit;
+using PlatformDocumentId = Phoenixml.Platform.Abstractions.Documents.DocumentId;
 
 namespace Phoenixml.Platform.Editor.Xml.Tests.Tree;
 
@@ -91,7 +94,7 @@ public class XmlTreeNodeProviderTests
         XmlTreeNode rootElemNode = children
             .OfType<XmlTreeNode>()
             .First(n => n.XdmNode is XdmElement el && el.LocalName == "root");
-        Assert.Equal("<root>", rootElemNode.Label);
+        Assert.Equal("root", rootElemNode.Label);
 
         // Check comment label (may appear before root element at document level)
         var commentNode = children.OfType<XmlTreeNode>().FirstOrDefault(n => n.XdmNode is XdmComment);
@@ -128,5 +131,86 @@ public class XmlTreeNodeProviderTests
 
         var leafNode = provider.GetChildren(rootElemNode)[0];
         Assert.False(leafNode.HasChildren);
+    }
+
+    [Fact]
+    public async Task ValueForAttributeReturnsAttributeValue()
+    {
+        // <root id="1"><child attr="hello">text content</child></root>
+        var doc = await LoadDocFromXml(SimpleXml, TestContext.Current.CancellationToken).ConfigureAwait(true);
+        var provider = doc.TreeNodes;
+
+        // Navigate: docNode → root element → @id attribute
+        var docNode = provider.Roots[0];
+        var rootElemNode = provider.GetChildren(docNode)[0];
+        var idAttrNode = Assert.IsType<XmlTreeNode>(provider.GetChildren(rootElemNode)
+            .First(n => n is XmlTreeNode x && x.XdmNode is XdmAttribute a && a.LocalName == "id"));
+
+        Assert.Equal("1", idAttrNode.Value);
+    }
+
+    [Fact]
+    public async Task ValueForTextOnlyElementReturnsTextContent()
+    {
+        // <root id="1"><child attr="hello">text content</child></root>
+        var doc = await LoadDocFromXml(SimpleXml, TestContext.Current.CancellationToken).ConfigureAwait(true);
+        var provider = doc.TreeNodes;
+
+        var docNode = provider.Roots[0];
+        var rootElemNode = provider.GetChildren(docNode)[0];
+        var childElemNode = provider.GetChildren(rootElemNode)
+            .First(n => n is XmlTreeNode x && x.XdmNode is XdmElement el && el.LocalName == "child");
+
+        Assert.Equal("text content", childElemNode.Value);
+    }
+
+    [Fact]
+    public async Task ValueForContainerElementIsEmpty()
+    {
+        // root has a child element — it is a container, so Value must be empty.
+        var doc = await LoadDocFromXml(SimpleXml, TestContext.Current.CancellationToken).ConfigureAwait(true);
+        var provider = doc.TreeNodes;
+
+        var docNode = provider.Roots[0];
+        var rootElemNode = provider.GetChildren(docNode)[0];
+
+        Assert.Equal(string.Empty, rootElemNode.Value);
+    }
+
+    [Fact]
+    public async Task ValueForDocumentNodeIsEmpty()
+    {
+        var doc = await LoadDocFromXml(SimpleXml, TestContext.Current.CancellationToken).ConfigureAwait(true);
+        var provider = doc.TreeNodes;
+
+        var docNode = provider.Roots[0];
+        Assert.Equal(string.Empty, docNode.Value);
+    }
+
+    [Fact]
+    public void ChangedEventFiresWhenRenameCommandExecutesViaUndoStack()
+    {
+        // Arrange: build doc without a file path (no async needed)
+        var (result, nsTable) = XmlDocument.ParseXml(SimpleXml);
+        var doc = new XmlDocument(
+            PlatformDocumentId.New(),
+            source: null,
+            "test.xml",
+            result,
+            nsTable);
+
+        var provider = doc.TreeNodes;
+
+        var firedCount = 0;
+        provider.Changed += () => firedCount++;
+
+        var rootId = result.Document.DocumentElement!.Value;
+        var cmd = new RenameElementCommand(doc, rootId, "renamed");
+
+        // Act
+        doc.Undo.Execute(cmd);
+
+        // Assert: Changed fired once
+        Assert.Equal(1, firedCount);
     }
 }

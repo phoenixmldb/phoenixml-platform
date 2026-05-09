@@ -72,6 +72,7 @@ public sealed class XmlDocument : Document
         if (Source is null)
             throw new InvalidOperationException("Cannot save a document with no Source URI; use SaveAsAsync.");
 
+        Compact();
         var xml = SerializeToString();
         var path = Source.LocalPath;
         var tempPath = path + ".tmp";
@@ -80,12 +81,19 @@ public sealed class XmlDocument : Document
         MarkClean();
     }
 
+    /// <summary>
+    /// Resets dirty state without persisting. Use when the editor is discarding changes
+    /// (e.g. Discard All on quit) so the subsequent close does not re-prompt.
+    /// </summary>
+    public new void MarkClean() => base.MarkClean();
+
     /// <summary>Saves the document to a different location and updates the Source URI.</summary>
     /// <param name="target">Target file URI.</param>
     /// <param name="ct">Cancellation token.</param>
     public async ValueTask SaveAsAsync(Uri target, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(target);
+        Compact();
         var xml = SerializeToString();
         var path = target.LocalPath;
         var tempPath = path + ".tmp";
@@ -94,6 +102,124 @@ public sealed class XmlDocument : Document
         Source = target;
         MarkClean();
     }
+
+    /// <summary>
+    /// Mark-and-sweep eviction of orphan NodeIds in <see cref="_byId"/>. Marks every NodeId
+    /// reachable from the document root, plus every NodeId referenced by commands on the
+    /// undo and redo stacks (so undo/redo across save still works). Sweeps everything else.
+    /// Called automatically before serialization in <see cref="SaveAsync"/> and <see cref="SaveAsAsync"/>.
+    /// </summary>
+    internal void Compact()
+    {
+        var alive = new HashSet<NodeId>();
+
+        // Mark phase 1: BFS from the document root through Children + Attributes.
+        var stack = new Stack<NodeId>();
+        alive.Add(_root.Id);
+        foreach (var childId in _root.Children)
+            stack.Push(childId);
+
+        while (stack.Count > 0)
+        {
+            var id = stack.Pop();
+            if (!alive.Add(id)) continue;
+            if (!_byId.TryGetValue(id, out var node)) continue;
+
+            if (node is XdmElement e)
+            {
+                foreach (var a in e.Attributes) stack.Push(a);
+                foreach (var c in e.Children) stack.Push(c);
+            }
+        }
+
+        // Mark phase 2: pin NodeIds referenced by commands on the undo and redo stacks.
+        foreach (var cmd in Undo.UndoCommands)
+            foreach (var id in cmd.ReferencedNodeIds)
+                alive.Add(id);
+        foreach (var cmd in Undo.RedoCommands)
+            foreach (var id in cmd.ReferencedNodeIds)
+                alive.Add(id);
+
+        // Sweep: remove every entry not marked alive.
+        var toRemove = new List<NodeId>();
+        foreach (var id in _byId.Keys)
+            if (!alive.Contains(id)) toRemove.Add(id);
+        foreach (var id in toRemove) _byId.Remove(id);
+    }
+
+    // Counter used by AllocateNodeId. Null until the first allocation (lazy init from _byId).
+    private ulong? _nextNodeIdValue;
+
+    /// <summary>
+    /// Allocates a fresh <see cref="NodeId"/> that is guaranteed not to collide with any
+    /// id already present in <c>_byId</c>. On the first call the counter is seeded from
+    /// <c>max(existing ids) + 1</c>; subsequent calls increment monotonically.
+    /// </summary>
+    /// <returns>A new <see cref="NodeId"/> not yet present in this document.</returns>
+    internal NodeId AllocateNodeId()
+    {
+        if (_nextNodeIdValue is null)
+        {
+            ulong max = 0;
+            foreach (var id in _byId.Keys)
+                if (id.Value > max) max = id.Value;
+            _nextNodeIdValue = max + 1;
+        }
+        var allocated = new NodeId(_nextNodeIdValue.Value);
+        _nextNodeIdValue = _nextNodeIdValue.Value + 1;
+        return allocated;
+    }
+
+    /// <summary>
+    /// Adds <paramref name="node"/> to the resolver dictionary under its <see cref="XdmNode.Id"/>.
+    /// Use this when inserting a brand-new node (e.g. a text child allocated via
+    /// <see cref="AllocateNodeId"/>). For replacing an existing entry, use
+    /// <see cref="ReplaceNode"/> instead.
+    /// </summary>
+    /// <param name="node">The node to add. Its <see cref="XdmNode.Id"/> must not already be present.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="node"/> is <see langword="null"/>.</exception>
+    /// <exception cref="InvalidOperationException">A node with the same id already exists; use <see cref="ReplaceNode"/> for swaps.</exception>
+    internal void AddNode(XdmNode node)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        if (_byId.ContainsKey(node.Id))
+            throw new InvalidOperationException(
+                $"A node with id {node.Id} is already present; use ReplaceNode for swap.");
+        _byId[node.Id] = node;
+    }
+
+    /// <summary>
+    /// Replaces the node behind <paramref name="id"/> with <paramref name="replacement"/>.
+    /// XdmNode types are immutable; "edits" happen by constructing a new node with the
+    /// changed properties and swapping it into the resolver dictionary. The NodeId is
+    /// preserved so parent Children lists (which reference by id) remain valid.
+    /// </summary>
+    /// <param name="id">The NodeId of the node to replace.</param>
+    /// <param name="replacement">The replacement node; its <see cref="XdmNode.Id"/> must equal <paramref name="id"/>.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="replacement"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException"><paramref name="replacement"/>'s Id does not match <paramref name="id"/>.</exception>
+    /// <exception cref="InvalidOperationException">No node with <paramref name="id"/> exists in this document.</exception>
+    internal void ReplaceNode(NodeId id, XdmNode replacement)
+    {
+        ArgumentNullException.ThrowIfNull(replacement);
+        if (replacement.Id != id)
+            throw new ArgumentException(
+                $"replacement.Id ({replacement.Id}) must equal the id being replaced ({id}).",
+                nameof(replacement));
+        if (!_byId.ContainsKey(id))
+            throw new InvalidOperationException($"No node with id {id} in this document.");
+        _byId[id] = replacement;
+    }
+
+    /// <summary>
+    /// Resolves a <see cref="NamespaceId"/> to its URI string.
+    /// Returns <see langword="null"/> when the id is <see cref="NamespaceId.None"/> or unknown.
+    /// </summary>
+    /// <param name="id">The namespace identifier to resolve.</param>
+    /// <returns>The namespace URI string, or <see langword="null"/> for no-namespace.</returns>
+    internal string? ResolveNamespace(NamespaceId id)
+        => id == NamespaceId.None ? null
+            : _namespaceById.TryGetValue(id, out var uri) ? uri : null;
 
     /// <summary>Serializes the XDM document back to an XML string.</summary>
     internal string SerializeToString()

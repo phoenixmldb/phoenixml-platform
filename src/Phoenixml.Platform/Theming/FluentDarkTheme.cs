@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
 
 namespace Phoenixml.Platform.Theming;
 
@@ -51,22 +52,29 @@ public sealed class FluentDarkTheme : ITheme
     public void Apply(IResourceHost host)
     {
         ArgumentNullException.ThrowIfNull(host);
-        if (host is not StyledElement styledElement)
-            throw new ArgumentException("host must be a StyledElement (e.g. Application, Window).", nameof(host));
-        var res = styledElement.Resources;
-        res["Phoenixml.Color.Surface.Base"] = Color.Parse(Colors.SurfaceBase);
-        res["Phoenixml.Color.Surface.Raised"] = Color.Parse(Colors.SurfaceRaised);
-        res["Phoenixml.Color.Surface.Sunken"] = Color.Parse(Colors.SurfaceSunken);
-        res["Phoenixml.Color.Content.Primary"] = Color.Parse(Colors.ContentPrimary);
-        res["Phoenixml.Color.Content.Secondary"] = Color.Parse(Colors.ContentSecondary);
-        res["Phoenixml.Color.Content.Disabled"] = Color.Parse(Colors.ContentDisabled);
-        res["Phoenixml.Color.Accent.Brand"] = Color.Parse(Colors.AccentBrand);
-        res["Phoenixml.Color.Accent.Product"] = Color.Parse(Colors.AccentProduct);
-        res["Phoenixml.Color.Border"] = Color.Parse(Colors.Border);
-        res["Phoenixml.Color.FocusRing"] = Color.Parse(Colors.FocusRing);
-        res["Phoenixml.Color.Success"] = Color.Parse(Colors.Success);
-        res["Phoenixml.Color.Warning"] = Color.Parse(Colors.Warning);
-        res["Phoenixml.Color.Error"] = Color.Parse(Colors.Error);
+        // Both Application and StyledElement expose Resources via separate hierarchies in
+        // Avalonia 11; accept either. IResourceHost itself doesn't surface Resources in 11.x.
+        IResourceDictionary res = host switch
+        {
+            Application app => app.Resources,
+            StyledElement styled => styled.Resources,
+            _ => throw new ArgumentException("host must be Application or StyledElement.", nameof(host)),
+        };
+        // Brushes (used by Background/Foreground/BorderBrush bindings — XAML can't auto-convert
+        // a Color resource to an IBrush, so we pre-wrap each color as an immutable brush).
+        res["Phoenixml.Color.Surface.Base"] = new ImmutableSolidColorBrush(Color.Parse(Colors.SurfaceBase));
+        res["Phoenixml.Color.Surface.Raised"] = new ImmutableSolidColorBrush(Color.Parse(Colors.SurfaceRaised));
+        res["Phoenixml.Color.Surface.Sunken"] = new ImmutableSolidColorBrush(Color.Parse(Colors.SurfaceSunken));
+        res["Phoenixml.Color.Content.Primary"] = new ImmutableSolidColorBrush(Color.Parse(Colors.ContentPrimary));
+        res["Phoenixml.Color.Content.Secondary"] = new ImmutableSolidColorBrush(Color.Parse(Colors.ContentSecondary));
+        res["Phoenixml.Color.Content.Disabled"] = new ImmutableSolidColorBrush(Color.Parse(Colors.ContentDisabled));
+        res["Phoenixml.Color.Accent.Brand"] = new ImmutableSolidColorBrush(Color.Parse(Colors.AccentBrand));
+        res["Phoenixml.Color.Accent.Product"] = new ImmutableSolidColorBrush(Color.Parse(Colors.AccentProduct));
+        res["Phoenixml.Color.Border"] = new ImmutableSolidColorBrush(Color.Parse(Colors.Border));
+        res["Phoenixml.Color.FocusRing"] = new ImmutableSolidColorBrush(Color.Parse(Colors.FocusRing));
+        res["Phoenixml.Color.Success"] = new ImmutableSolidColorBrush(Color.Parse(Colors.Success));
+        res["Phoenixml.Color.Warning"] = new ImmutableSolidColorBrush(Color.Parse(Colors.Warning));
+        res["Phoenixml.Color.Error"] = new ImmutableSolidColorBrush(Color.Parse(Colors.Error));
         res["Phoenixml.Spacing.Xs"] = Spacing.Xs;
         res["Phoenixml.Spacing.Sm"] = Spacing.Sm;
         res["Phoenixml.Spacing.Md"] = Spacing.Md;

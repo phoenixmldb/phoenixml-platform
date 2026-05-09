@@ -6,7 +6,8 @@
         Width="1200" Height="800"
         ExtendClientAreaToDecorationsHint="True"
         ExtendClientAreaTitleBarHeightHint="-1"
-        SystemDecorations="Full"
+        ExtendClientAreaChromeHints="NoChrome"
+        SystemDecorations="BorderOnly"
         Background="{DynamicResource Phoenixml.Color.Surface.Base}">
     <Grid RowDefinitions="32,*,Auto">
         <!-- Custom title bar -->

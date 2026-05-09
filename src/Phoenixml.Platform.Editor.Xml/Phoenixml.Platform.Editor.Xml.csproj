@@ -26,6 +26,8 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Phoenixml.Platform.Editor.Xml.Tests" />
+    <InternalsVisibleTo Include="Phoenixml.Editor" />
+    <InternalsVisibleTo Include="Phoenixml.Editor.Tests" />
   </ItemGroup>
 
   <!--

@@ -28,4 +28,18 @@ public interface IUndoStack
 
     /// <summary>Empties both the undo and redo stacks.</summary>
     void Clear();
+
+    /// <summary>
+    /// Read-only view of all commands currently on the undo stack (most-recent-first).
+    /// Compact-on-Save walks this to collect <see cref="IEditorCommand.ReferencedNodeIds"/>
+    /// for commands that pin orphaned nodes (e.g. deleted subtrees).
+    /// </summary>
+    IReadOnlyCollection<IEditorCommand> UndoCommands { get; }
+
+    /// <summary>
+    /// Read-only view of all commands currently on the redo stack (most-recent-first).
+    /// Compact-on-Save walks this alongside <see cref="UndoCommands"/> so that redo-able
+    /// deletions also keep their orphaned subtrees alive in the resolver dictionary.
+    /// </summary>
+    IReadOnlyCollection<IEditorCommand> RedoCommands { get; }
 }

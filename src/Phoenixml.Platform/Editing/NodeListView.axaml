@@ -1,0 +1,91 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Phoenixml.Platform.Editing"
+             x:Class="Phoenixml.Platform.Editing.NodeListView">
+    <ListBox Name="RowsHost"
+             Background="{DynamicResource Phoenixml.Color.Surface.Base}"
+             SelectionChanged="RowsHost_SelectionChanged"
+             KeyDown="RowsHost_KeyDown">
+        <ListBox.ItemTemplate>
+            <DataTemplate DataType="{x:Type local:NodeRowViewModel}">
+                <Grid ColumnDefinitions="360,1,*">
+                    <Grid.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Insert Child Element"
+                                      Click="InsertChildElement_Click"
+                                      Tag="{Binding}" />
+                            <MenuItem Header="Insert Attribute"
+                                      Click="InsertAttribute_Click"
+                                      Tag="{Binding}" />
+                            <Separator />
+                            <MenuItem Header="Delete"
+                                      Click="Delete_Click"
+                                      Tag="{Binding}" />
+                        </ContextMenu>
+                    </Grid.ContextMenu>
+                    <!-- Name column: diagnostic glyph + indent spacer + chevron toggle + label (TextBlock/TextBox) -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                        <!-- Diagnostic overlay: ✕ (error) or ⚠ (warning) in a fixed 16-dip slot.
+                             Empty string + Transparent brush when the row has no diagnostic,
+                             so the slot is reserved but invisible on clean rows. -->
+                        <TextBlock Text="{Binding DiagnosticGlyph}"
+                                   Foreground="{Binding DiagnosticGlyphBrush}"
+                                   Width="16"
+                                   VerticalAlignment="Center"
+                                   FontWeight="Bold"
+                                   Margin="0,0,4,0" />
+                        <Border Width="{Binding IndentWidth}" />
+                        <Button Width="16" Height="16"
+                                Padding="0"
+                                Margin="0,0,4,0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                IsVisible="{Binding HasChildren}"
+                                Content="{Binding ChevronGlyph}"
+                                Foreground="{DynamicResource Phoenixml.Color.Content.Secondary}"
+                                Click="Chevron_Click"
+                                Tag="{Binding}" />
+                        <Border Width="20" IsVisible="{Binding !HasChildren}" />
+                        <Grid>
+                            <TextBlock Text="{Binding Label}"
+                                       IsVisible="{Binding !IsEditing}"
+                                       Foreground="{DynamicResource Phoenixml.Color.Content.Primary}"
+                                       VerticalAlignment="Center" />
+                            <TextBox Text="{Binding EditingText, Mode=TwoWay}"
+                                     IsVisible="{Binding IsEditing}"
+                                     KeyDown="EditingBox_KeyDown"
+                                     LostFocus="EditingBox_LostFocus"
+                                     MinWidth="120"
+                                     Padding="2,0" />
+                        </Grid>
+                    </StackPanel>
+                    <!-- Vertical divider between name and value columns -->
+                    <Border Grid.Column="1"
+                            Background="{DynamicResource Phoenixml.Color.Border}" />
+                    <!-- Value column: TextBlock for display, TextBox for inline edit. Single-click on the
+                         TextBlock enters value-editing mode. Independent from name-column edit (F2) so both
+                         gestures stay discoverable. -->
+                    <Grid Grid.Column="2">
+                        <TextBlock Text="{Binding Value}"
+                                   IsVisible="{Binding !IsValueEditing}"
+                                   Background="Transparent"
+                                   Foreground="{DynamicResource Phoenixml.Color.Content.Primary}"
+                                   HorizontalAlignment="Stretch"
+                                   VerticalAlignment="Stretch"
+                                   Padding="8,0,0,0"
+                                   TextAlignment="Left"
+                                   TextTrimming="CharacterEllipsis"
+                                   Tapped="ValueDisplay_Tapped"
+                                   Tag="{Binding}" />
+                        <TextBox Text="{Binding EditingValue, Mode=TwoWay}"
+                                 IsVisible="{Binding IsValueEditing}"
+                                 KeyDown="ValueBox_KeyDown"
+                                 LostFocus="ValueBox_LostFocus"
+                                 Margin="8,0,0,0"
+                                 Padding="2,0" />
+                    </Grid>
+                </Grid>
+            </DataTemplate>
+        </ListBox.ItemTemplate>
+    </ListBox>
+</UserControl>

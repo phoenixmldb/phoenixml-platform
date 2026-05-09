@@ -18,4 +18,20 @@ public interface ITreeNode
 
     /// <summary>True if this node has children that haven't been enumerated yet.</summary>
     bool HasChildren { get; }
+
+    /// <summary>
+    /// Display value for this node (e.g. attribute value, text-only element's text content).
+    /// Empty string for container nodes (elements with element children) and the document node itself.
+    /// Vocabulary providers decide what counts as "the value" for each node kind.
+    /// </summary>
+    string Value { get; }
+
+    /// <summary>
+    /// Text shown in the inline edit TextBox when the user enters rename mode.
+    /// For most nodes this matches <see cref="Label"/>, but vocabulary providers can return
+    /// a different form for cells whose label includes presentation prefixes — for example,
+    /// XML attributes whose label is <c>@id</c> return the bare local name <c>id</c> here so
+    /// the user doesn't end up with <c>@@id</c> after editing.
+    /// </summary>
+    string EditableName { get; }
 }

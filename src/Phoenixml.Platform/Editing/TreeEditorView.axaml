@@ -5,12 +5,30 @@
     <TreeView Name="TreeHost"
               Background="{DynamicResource Phoenixml.Color.Surface.Base}"
               SelectionChanged="TreeHost_SelectionChanged"
-              DoubleTapped="TreeHost_DoubleTapped">
+              DoubleTapped="TreeHost_DoubleTapped"
+              KeyDown="TreeHost_KeyDown">
+        <TreeView.Styles>
+            <!-- Bind TreeViewItem.IsExpanded to the view-model's IsExpanded so we can
+                 auto-expand the root level (and persist user expansion state across refreshes). -->
+            <Style Selector="TreeViewItem">
+                <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+            </Style>
+        </TreeView.Styles>
         <TreeView.ItemTemplate>
             <TreeDataTemplate DataType="{x:Type local:TreeNodeViewModel}"
                               ItemsSource="{Binding Children}">
-                <TextBlock Text="{Binding Label}"
-                           Foreground="{DynamicResource Phoenixml.Color.Content.Primary}" />
+                <Grid>
+                    <TextBlock Text="{Binding Label}"
+                               IsVisible="{Binding !IsEditing}"
+                               Foreground="{DynamicResource Phoenixml.Color.Content.Primary}"
+                               VerticalAlignment="Center" />
+                    <TextBox Text="{Binding EditingText, Mode=TwoWay}"
+                             IsVisible="{Binding IsEditing}"
+                             KeyDown="EditingBox_KeyDown"
+                             LostFocus="EditingBox_LostFocus"
+                             MinWidth="120"
+                             Padding="2,0" />
+                </Grid>
             </TreeDataTemplate>
         </TreeView.ItemTemplate>
     </TreeView>

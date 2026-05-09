@@ -4,16 +4,17 @@
     <Grid Name="RootGrid">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="300" />
-            <ColumnDefinition Width="4" />
+            <ColumnDefinition Width="6" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
         <ContentPresenter Name="Pane1Presenter" Grid.Column="0" />
         <GridSplitter Name="Splitter"
                       Grid.Column="1"
                       ResizeDirection="Columns"
-                      Background="{DynamicResource Phoenixml.Color.Surface.Sunken}"
+                      Background="{DynamicResource Phoenixml.Color.Border}"
                       HorizontalAlignment="Stretch"
-                      VerticalAlignment="Stretch" />
+                      VerticalAlignment="Stretch"
+                      Cursor="SizeWestEast" />
         <ContentPresenter Name="Pane2Presenter" Grid.Column="2" />
     </Grid>
 </UserControl>

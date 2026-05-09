@@ -17,6 +17,21 @@ internal sealed class UndoStack : IUndoStack
     public string? NextUndoDescription => _undo.TryPeek(out var c) ? c.Description : null;
     public string? NextRedoDescription => _redo.TryPeek(out var c) ? c.Description : null;
 
+    /// <summary>
+    /// Read-only view of the undo stack ordered most-recent-first (top of stack first).
+    /// Compact-on-Save walks this to collect <see cref="IEditorCommand.ReferencedNodeIds"/>
+    /// for all commands so that orphaned-but-still-revertible nodes are kept alive in the
+    /// document's resolver dictionary.
+    /// </summary>
+    public IReadOnlyCollection<IEditorCommand> UndoCommands => _undo;
+
+    /// <summary>
+    /// Read-only view of the redo stack ordered most-recent-first (top of stack first).
+    /// Used alongside <see cref="UndoCommands"/> by the compactor so that redo-able
+    /// deletions also pin their orphan NodeIds.
+    /// </summary>
+    public IReadOnlyCollection<IEditorCommand> RedoCommands => _redo;
+
     public void Execute(IEditorCommand command)
     {
         ArgumentNullException.ThrowIfNull(command);

@@ -8,12 +8,12 @@ file sealed class SimpleDiagnostic(
     DiagnosticSeverity severity,
     string message,
     string? code = null,
-    object? location = null) : IDiagnostic
+    DiagnosticLocation? location = null) : IDiagnostic
 {
     public DiagnosticSeverity Severity { get; } = severity;
     public string? Code { get; } = code;
     public string Message { get; } = message;
-    public object? Location { get; } = location;
+    public DiagnosticLocation? Location { get; } = location;
 }
 
 public class ProblemsViewTests

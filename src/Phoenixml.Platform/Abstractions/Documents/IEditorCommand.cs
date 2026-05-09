@@ -1,3 +1,5 @@
+using PhoenixmlDb.Core;
+
 namespace Phoenixml.Platform.Abstractions.Documents;
 
 /// <summary>
@@ -21,4 +23,12 @@ public interface IEditorCommand
     /// Returns <see langword="true"/> and sets <paramref name="merged"/> when the merge succeeds.
     /// </summary>
     bool TryMergeWith(IEditorCommand previous, out IEditorCommand merged);
+
+    /// <summary>
+    /// NodeIds this command references that may not be reachable from the document root —
+    /// e.g., the root of a deleted subtree. Compact-on-Save uses this to keep undo-relevant
+    /// orphans alive in <c>_byId</c>. Most commands return an empty enumeration; the only
+    /// commands that pin orphans are deletion commands.
+    /// </summary>
+    IEnumerable<NodeId> ReferencedNodeIds { get; }
 }
