@@ -8,6 +8,9 @@
              KeyDown="RowsHost_KeyDown">
         <ListBox.ItemTemplate>
             <DataTemplate DataType="{x:Type local:NodeRowViewModel}">
+                <Border Background="{Binding MatchHighlightBrush}"
+                        Padding="0"
+                        BorderThickness="0">
                 <Grid ColumnDefinitions="360,1,*">
                     <Grid.ContextMenu>
                         <ContextMenu>
@@ -85,6 +88,7 @@
                                  Padding="2,0" />
                     </Grid>
                 </Grid>
+                </Border>
             </DataTemplate>
         </ListBox.ItemTemplate>
     </ListBox>

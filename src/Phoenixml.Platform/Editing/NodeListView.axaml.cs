@@ -497,6 +497,17 @@ public sealed class NodeRowViewModel : INotifyPropertyChanged
         _              => Brushes.Transparent,
     };
 
+    /// <summary>Match-highlight state forwarded from <see cref="Node"/>.</summary>
+    public MatchHighlight MatchHighlight => Node.MatchHighlight;
+
+    /// <summary>Brush for the row's background tint based on <see cref="MatchHighlight"/>.</summary>
+    public IBrush MatchHighlightBrush => MatchHighlight switch
+    {
+        MatchHighlight.ActiveMatch => new SolidColorBrush(Color.FromArgb(0xC0, 0x1E, 0x90, 0xFF)),  // dodger blue, slightly translucent
+        MatchHighlight.Match       => new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xE0, 0x66)),  // soft yellow, translucent
+        _                          => Brushes.Transparent,
+    };
+
     private bool _isEditing;
 
     /// <summary>
