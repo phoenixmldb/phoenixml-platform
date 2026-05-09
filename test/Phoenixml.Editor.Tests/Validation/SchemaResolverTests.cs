@@ -232,4 +232,271 @@ public sealed class SchemaResolverTests : IDisposable
         Assert.NotNull(second);
         Assert.Same(first, second);
     }
+
+    // -----------------------------------------------------------------------
+    // Auto-detect heuristic tests
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Writes a file inside a subdirectory relative to <see cref="_tempDir"/>.
+    /// Creates intermediate directories as needed.
+    /// </summary>
+    private static string WriteFileInDir(string dir, string name, string content)
+    {
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(dir, name);
+        File.WriteAllText(path, content);
+        return path;
+    }
+
+    [Fact]
+    public void ResolveSameFolderNameMatch()
+    {
+        // Layout: dir/library.xml + dir/library.xsd
+        var xmlPath = WriteFile("library.xml", "<root>hello</root>");
+        WriteFile("library.xsd", SimpleXsd);
+
+        var doc = MakeDoc(File.ReadAllText(xmlPath), xmlPath);
+        var resolver = MakeResolver();
+
+        var resolution = resolver.ResolveDetailed(doc);
+
+        Assert.NotNull(resolution);
+        Assert.Equal(SchemaResolutionKind.AutoSameFolderName, resolution!.Kind);
+        Assert.True(resolution.Schemas.Count > 0);
+    }
+
+    [Fact]
+    public void ResolveSameFolderSingleXsd()
+    {
+        // Layout: dir/library.xml + dir/unrelated.xsd (only one XSD, no name match)
+        var xmlPath = WriteFile("library2.xml", "<root>hello</root>");
+        WriteFile("unrelated.xsd", SimpleXsd);
+
+        var doc = MakeDoc(File.ReadAllText(xmlPath), xmlPath);
+        var resolver = MakeResolver();
+
+        var resolution = resolver.ResolveDetailed(doc);
+
+        Assert.NotNull(resolution);
+        Assert.Equal(SchemaResolutionKind.AutoSameFolderSingle, resolution!.Kind);
+        Assert.True(resolution.Schemas.Count > 0);
+    }
+
+    [Fact]
+    public void ResolveSameFolderMultipleXsdsNoMatchReturnsNull()
+    {
+        // Layout: dir/nomatch.xml + dir/foo.xsd + dir/bar.xsd (two XSDs, no name match → don't guess)
+        // Use an isolated subfolder to avoid pollution from other test files in _tempDir.
+        var subDir = Path.Combine(_tempDir, "multi-xsd");
+        Directory.CreateDirectory(subDir);
+        WriteFileInDir(subDir, "nomatch.xml", "<root>hello</root>");
+        WriteFileInDir(subDir, "foo.xsd", SimpleXsd);
+        WriteFileInDir(subDir, "bar.xsd", OtherXsd);
+
+        var xmlPath = Path.Combine(subDir, "nomatch.xml");
+        var doc = MakeDoc(File.ReadAllText(xmlPath), xmlPath);
+        var resolver = MakeResolver();
+
+        var result = resolver.Resolve(doc);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ResolveSubfolderNameMatch()
+    {
+        // Layout: dir/library.xml + dir/schemas/library.xsd
+        var subDir = Path.Combine(_tempDir, "subfolder-name");
+        Directory.CreateDirectory(subDir);
+        var schemasDir = Path.Combine(subDir, "schemas");
+        Directory.CreateDirectory(schemasDir);
+
+        WriteFileInDir(subDir, "library.xml", "<root>hello</root>");
+        WriteFileInDir(schemasDir, "library.xsd", SimpleXsd);
+
+        var xmlPath = Path.Combine(subDir, "library.xml");
+        var doc = MakeDoc(File.ReadAllText(xmlPath), xmlPath);
+        var resolver = MakeResolver();
+
+        var resolution = resolver.ResolveDetailed(doc);
+
+        Assert.NotNull(resolution);
+        Assert.Equal(SchemaResolutionKind.AutoSubfolderName, resolution!.Kind);
+        Assert.True(resolution.Schemas.Count > 0);
+    }
+
+    [Fact]
+    public void ResolveSubfolderSingleXsd()
+    {
+        // Layout: dir/library.xml + dir/schemas/foo.xsd (only one XSD in subfolder)
+        var subDir = Path.Combine(_tempDir, "subfolder-single");
+        Directory.CreateDirectory(subDir);
+        var schemasDir = Path.Combine(subDir, "schemas");
+        Directory.CreateDirectory(schemasDir);
+
+        WriteFileInDir(subDir, "library.xml", "<root>hello</root>");
+        WriteFileInDir(schemasDir, "foo.xsd", SimpleXsd);
+
+        var xmlPath = Path.Combine(subDir, "library.xml");
+        var doc = MakeDoc(File.ReadAllText(xmlPath), xmlPath);
+        var resolver = MakeResolver();
+
+        var resolution = resolver.ResolveDetailed(doc);
+
+        Assert.NotNull(resolution);
+        Assert.Equal(SchemaResolutionKind.AutoSubfolderSingle, resolution!.Kind);
+        Assert.True(resolution.Schemas.Count > 0);
+    }
+
+    [Fact]
+    public void ResolveSiblingFolderNameMatch()
+    {
+        // Layout: parent/data/library.xml + parent/schemas/library.xsd
+        var parentDir = Path.Combine(_tempDir, "sib-name-parent");
+        var dataDir = Path.Combine(parentDir, "data");
+        var schemasDir = Path.Combine(parentDir, "schemas");
+        Directory.CreateDirectory(dataDir);
+        Directory.CreateDirectory(schemasDir);
+
+        WriteFileInDir(dataDir, "library.xml", "<root>hello</root>");
+        WriteFileInDir(schemasDir, "library.xsd", SimpleXsd);
+
+        var xmlPath = Path.Combine(dataDir, "library.xml");
+        var doc = MakeDoc(File.ReadAllText(xmlPath), xmlPath);
+        var resolver = MakeResolver();
+
+        var resolution = resolver.ResolveDetailed(doc);
+
+        Assert.NotNull(resolution);
+        Assert.Equal(SchemaResolutionKind.AutoSiblingFolderName, resolution!.Kind);
+        Assert.True(resolution.Schemas.Count > 0);
+    }
+
+    [Fact]
+    public void ResolveSiblingFolderSingleXsd()
+    {
+        // Layout: parent/data/library.xml + parent/schemas/foo.xsd (only one XSD in sibling)
+        var parentDir = Path.Combine(_tempDir, "sib-single-parent");
+        var dataDir = Path.Combine(parentDir, "data");
+        var schemasDir = Path.Combine(parentDir, "schemas");
+        Directory.CreateDirectory(dataDir);
+        Directory.CreateDirectory(schemasDir);
+
+        WriteFileInDir(dataDir, "library.xml", "<root>hello</root>");
+        WriteFileInDir(schemasDir, "foo.xsd", SimpleXsd);
+
+        var xmlPath = Path.Combine(dataDir, "library.xml");
+        var doc = MakeDoc(File.ReadAllText(xmlPath), xmlPath);
+        var resolver = MakeResolver();
+
+        var resolution = resolver.ResolveDetailed(doc);
+
+        Assert.NotNull(resolution);
+        Assert.Equal(SchemaResolutionKind.AutoSiblingFolderSingle, resolution!.Kind);
+        Assert.True(resolution.Schemas.Count > 0);
+    }
+
+    [Fact]
+    public void ResolveAutoDetectChecksXsdSubfolderToo()
+    {
+        // Layout: dir/library.xml + dir/xsd/library.xsd (alternate subfolder name)
+        var subDir = Path.Combine(_tempDir, "xsd-subfolder");
+        Directory.CreateDirectory(subDir);
+        var xsdDir = Path.Combine(subDir, "xsd");
+        Directory.CreateDirectory(xsdDir);
+
+        WriteFileInDir(subDir, "library.xml", "<root>hello</root>");
+        WriteFileInDir(xsdDir, "library.xsd", SimpleXsd);
+
+        var xmlPath = Path.Combine(subDir, "library.xml");
+        var doc = MakeDoc(File.ReadAllText(xmlPath), xmlPath);
+        var resolver = MakeResolver();
+
+        var resolution = resolver.ResolveDetailed(doc);
+
+        Assert.NotNull(resolution);
+        Assert.Equal(SchemaResolutionKind.AutoSubfolderName, resolution!.Kind);
+        Assert.True(resolution.Schemas.Count > 0);
+    }
+
+    [Fact]
+    public void ResolveOverrideBeatsAutoDetect()
+    {
+        // Layout: dir/library.xml + dir/library.xsd (auto-detect would pick the latter),
+        // BUT settings has an override pointing at override.xsd (defines <other>).
+        var subDir = Path.Combine(_tempDir, "override-wins");
+        Directory.CreateDirectory(subDir);
+
+        WriteFileInDir(subDir, "library.xml", "<root>hello</root>");
+        WriteFileInDir(subDir, "library.xsd", SimpleXsd);
+        var overridePath = WriteFileInDir(subDir, "override.xsd", OtherXsd);
+
+        var xmlPath = Path.Combine(subDir, "library.xml");
+        var doc = MakeDoc(File.ReadAllText(xmlPath), xmlPath);
+        var resolver = MakeResolver(new Dictionary<string, string> { [xmlPath] = overridePath });
+
+        var resolution = resolver.ResolveDetailed(doc);
+
+        Assert.NotNull(resolution);
+        Assert.Equal(SchemaResolutionKind.Override, resolution!.Kind);
+        Assert.Equal(Path.GetFullPath(overridePath), Path.GetFullPath(resolution.SourcePath));
+    }
+
+    [Fact]
+    public void ResolveXsiHintBeatsAutoDetect()
+    {
+        // Layout: dir/library.xml with xsi:noNamespaceSchemaLocation="hint.xsd" + dir/library.xsd
+        // The xsi: hint should win over the same-folder name match.
+        var subDir = Path.Combine(_tempDir, "xsi-wins");
+        Directory.CreateDirectory(subDir);
+
+        WriteFileInDir(subDir, "hint.xsd", OtherXsd);
+        WriteFileInDir(subDir, "library.xsd", SimpleXsd);
+        WriteFileInDir(subDir, "library.xml", """
+            <?xml version="1.0"?>
+            <other xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:noNamespaceSchemaLocation="hint.xsd">hello</other>
+            """);
+
+        var xmlPath = Path.Combine(subDir, "library.xml");
+        var doc = MakeDoc(File.ReadAllText(xmlPath), xmlPath);
+        var resolver = MakeResolver();
+
+        var resolution = resolver.ResolveDetailed(doc);
+
+        Assert.NotNull(resolution);
+        Assert.Equal(SchemaResolutionKind.XsiHint, resolution!.Kind);
+        Assert.EndsWith("hint.xsd", resolution.SourcePath, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ResolveAutoDetectIsLastResort()
+    {
+        // Layout: dir/only.xml — no XSDs anywhere in the search path.
+        var subDir = Path.Combine(_tempDir, "no-xsd");
+        Directory.CreateDirectory(subDir);
+        WriteFileInDir(subDir, "only.xml", "<root>hello</root>");
+
+        var xmlPath = Path.Combine(subDir, "only.xml");
+        var doc = MakeDoc(File.ReadAllText(xmlPath), xmlPath);
+        var resolver = MakeResolver();
+
+        var result = resolver.Resolve(doc);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ResolveDocumentWithoutSourceReturnsNull()
+    {
+        // A document constructed without a file path has no Source URI;
+        // auto-detect cannot search "the document's folder" and must return null.
+        var doc = MakeDoc("<root>hello</root>"); // no filePath → Source is null
+        var resolver = MakeResolver();
+
+        var result = resolver.Resolve(doc);
+
+        Assert.Null(result);
+    }
 }
