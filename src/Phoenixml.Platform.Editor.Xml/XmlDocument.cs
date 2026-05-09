@@ -211,6 +211,16 @@ public sealed class XmlDocument : Document
         _byId[id] = replacement;
     }
 
+    /// <summary>
+    /// Resolves a <see cref="NamespaceId"/> to its URI string.
+    /// Returns <see langword="null"/> when the id is <see cref="NamespaceId.None"/> or unknown.
+    /// </summary>
+    /// <param name="id">The namespace identifier to resolve.</param>
+    /// <returns>The namespace URI string, or <see langword="null"/> for no-namespace.</returns>
+    internal string? ResolveNamespace(NamespaceId id)
+        => id == NamespaceId.None ? null
+            : _namespaceById.TryGetValue(id, out var uri) ? uri : null;
+
     /// <summary>Serializes the XDM document back to an XML string.</summary>
     internal string SerializeToString()
     {

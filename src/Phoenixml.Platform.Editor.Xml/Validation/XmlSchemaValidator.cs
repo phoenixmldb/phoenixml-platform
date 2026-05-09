@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using System.IO;
+using System.Text;
 using System.Xml;
 using System.Xml.Schema;
 using PhoenixmlDb.Core;
@@ -12,6 +12,14 @@ namespace Phoenixml.Platform.Editor.Xml.Validation;
 /// Validates an <see cref="XmlDocument"/> against an XSD schema set. Surfaces violations
 /// as <see cref="XmlDiagnostic"/> for binding to ProblemsView.
 /// </summary>
+/// <remarks>
+/// Validation is push-based: the validator walks the in-memory <see cref="XdmDocument"/> tree
+/// and drives <see cref="System.Xml.Schema.XmlSchemaValidator"/> with explicit
+/// <c>ValidateElement</c> / <c>ValidateAttribute</c> / <c>ValidateText</c> /
+/// <c>ValidateEndElement</c> calls. The current <see cref="XdmNode"/> is in scope when each
+/// call returns, so diagnostics attach exact source positions without any serialization
+/// round-trip or line/column approximation.
+/// </remarks>
 public sealed class XmlSchemaValidator
 {
     /// <summary>
@@ -26,50 +34,47 @@ public sealed class XmlSchemaValidator
         ArgumentNullException.ThrowIfNull(schemas);
 
         var diagnostics = new List<IDiagnostic>();
-        var xml = document.SerializeToString();
+        var nameTable = new NameTable();
+        var nsManager = new XmlNamespaceManager(nameTable);
 
-        var settings = new XmlReaderSettings
-        {
-            Schemas = schemas,
-            ValidationType = ValidationType.Schema,
-            ValidationFlags = XmlSchemaValidationFlags.ReportValidationWarnings
-                            | XmlSchemaValidationFlags.ProcessIdentityConstraints,
-        };
+        var validator = new System.Xml.Schema.XmlSchemaValidator(
+            nameTable,
+            schemas,
+            nsManager,
+            XmlSchemaValidationFlags.ReportValidationWarnings
+                | XmlSchemaValidationFlags.ProcessIdentityConstraints
+                | XmlSchemaValidationFlags.ProcessSchemaLocation
+                | XmlSchemaValidationFlags.ProcessInlineSchema);
 
-        settings.ValidationEventHandler += (_, e) =>
+        // Mutable context object shared with the event handler so the lambda can read
+        // whichever node is active at the moment the validation event fires.
+        var ctx = new ValidationContext();
+
+        validator.ValidationEventHandler += (_, e) =>
         {
-            var line = e.Exception?.LineNumber ?? 0;
-            var col  = e.Exception?.LinePosition ?? 0;
-            var nodeId = line > 0 ? FindNodeNearLine(document, line, col) : null;
+            var node = ctx.CurrentNode;
+            DiagnosticLocation? loc = null;
+            string? code = null;
+            if (node is not null && node.SourceLine > 0)
+            {
+                loc = new DiagnosticLocation(node.Id, node.SourceLine, node.SourceColumn);
+                code = $"line {node.SourceLine}, col {node.SourceColumn}";
+            }
 
             diagnostics.Add(new XmlDiagnostic
             {
                 Severity = e.Severity == XmlSeverityType.Warning
                     ? DiagnosticSeverity.Warning
                     : DiagnosticSeverity.Error,
-                Code = line > 0 ? $"line {line}, col {col}" : null,
+                Code = code,
                 Message = e.Message,
-                Location = nodeId is NodeId id
-                    ? new DiagnosticLocation(id, line, col)
-                    : null,
+                Location = loc,
             });
         };
 
-        using var reader = XmlReader.Create(new StringReader(xml), settings);
-        try
-        {
-            while (reader.Read()) { /* drain */ }
-        }
-        catch (XmlException xex)
-        {
-            diagnostics.Add(new XmlDiagnostic
-            {
-                Severity = DiagnosticSeverity.Error,
-                Code = $"line {xex.LineNumber}, col {xex.LinePosition}",
-                Message = xex.Message,
-            });
-        }
-
+        validator.Initialize();
+        WalkDocument(document, validator, nsManager, ctx);
+        validator.EndValidation();
         return diagnostics;
     }
 
@@ -85,56 +90,148 @@ public sealed class XmlSchemaValidator
         return schemas;
     }
 
+    // -------------------------------------------------------------------------
+    // Mutable validation context — shared by reference with the event handler.
+    // -------------------------------------------------------------------------
+
     /// <summary>
-    /// Walks the XDM tree depth-first to find the node whose parse-time source position
-    /// is the closest match (greatest <c>SourceLine</c> ≤ <paramref name="line"/>; on a
-    /// tie, greatest <c>SourceColumn</c> ≤ <paramref name="column"/>).
+    /// Tracks the <see cref="XdmNode"/> currently being processed so the
+    /// <see cref="System.Xml.Schema.XmlSchemaValidator"/> event handler can attach
+    /// diagnostics to the exact source node.
     /// </summary>
-    /// <param name="document">The document to search.</param>
-    /// <param name="line">One-based target line number from the validator.</param>
-    /// <param name="column">One-based target column number from the validator.</param>
-    /// <returns>The <see cref="NodeId"/> of the best-matching node, or <see langword="null"/>
-    /// when no node carries source position information (SourceLine == 0 for all).</returns>
-    private static NodeId? FindNodeNearLine(XmlDocument document, int line, int column)
+    private sealed class ValidationContext
     {
-        NodeId? best = null;
-        int bestLine = 0;
-        int bestCol  = 0;
+        /// <summary>The node active at the time the next validation event may fire.</summary>
+        public XdmNode? CurrentNode { get; set; }
+    }
 
-        void Walk(NodeId id)
+    // -------------------------------------------------------------------------
+    // Tree walk.
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Walks the document root's top-level children and drives the validator for each
+    /// top-level element. Comments, PIs, and other non-element children at document level
+    /// are skipped — XSD validation applies only to element content.
+    /// </summary>
+    private static void WalkDocument(
+        XmlDocument doc,
+        System.Xml.Schema.XmlSchemaValidator validator,
+        XmlNamespaceManager nsManager,
+        ValidationContext ctx)
+    {
+        foreach (var childId in doc.Root.Children)
         {
-            var node = document.Resolve(id);
-            if (node is null) return;
+            if (doc.Resolve(childId) is XdmElement el)
+                WalkElement(doc, el, validator, nsManager, ctx);
+        }
+    }
 
-            if (node.SourceLine > 0 && node.SourceLine <= line)
-            {
-                // Prefer the latest start line ≤ target. Tiebreak: prefer the highest
-                // column ≤ target on the same line, to land on the innermost open tag.
-                bool better = node.SourceLine > bestLine
-                    || (node.SourceLine == bestLine
-                        && node.SourceColumn <= column
-                        && node.SourceColumn > bestCol);
+    /// <summary>
+    /// Recursively drives the validator for <paramref name="element"/> and all its
+    /// descendants, maintaining namespace scope throughout.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Namespace declarations on the element are pushed to <paramref name="nsManager"/>
+    /// before calling <c>ValidateElement</c> so the validator can resolve namespace prefixes
+    /// in attribute values and schema-location hints.
+    /// </para>
+    /// <para>
+    /// Text-content diagnostics are attached to the containing element (not the text child
+    /// node) so the inline glyph renders on the element row in the editor.
+    /// </para>
+    /// </remarks>
+    private static void WalkElement(
+        XmlDocument doc,
+        XdmElement element,
+        System.Xml.Schema.XmlSchemaValidator validator,
+        XmlNamespaceManager nsManager,
+        ValidationContext ctx)
+    {
+        ctx.CurrentNode = element;
 
-                if (better)
-                {
-                    best    = id;
-                    bestLine = node.SourceLine;
-                    bestCol  = node.SourceColumn;
-                }
-            }
+        nsManager.PushScope();
 
-            if (node is XdmElement el)
-            {
-                foreach (var attrId in el.Attributes) Walk(attrId);
-                foreach (var childId in el.Children)  Walk(childId);
-            }
-            else if (node is XdmDocument d)
-            {
-                foreach (var childId in d.Children) Walk(childId);
-            }
+        // Push this element's xmlns declarations into the manager BEFORE calling
+        // ValidateElement so the validator can resolve namespace prefixes.
+        // NamespaceBinding.Namespace is a NamespaceId; resolve to URI string via doc.
+        foreach (var binding in element.NamespaceDeclarations)
+        {
+            var uri = doc.ResolveNamespace(binding.Namespace) ?? string.Empty;
+            nsManager.AddNamespace(binding.Prefix ?? string.Empty, uri);
         }
 
-        Walk(document.Root.Id);
-        return best;
+        // Resolve the element's own namespace URI.
+        var elNsUri = doc.ResolveNamespace(element.Namespace) ?? string.Empty;
+
+        validator.ValidateElement(
+            localName: element.LocalName,
+            namespaceUri: elNsUri,
+            schemaInfo: null);
+
+        // Validate attributes. XdmElement.Attributes does NOT include xmlns declarations
+        // (those live in NamespaceDeclarations), so no xmlns filtering is needed here.
+        foreach (var attrId in element.Attributes)
+        {
+            if (doc.Resolve(attrId) is not XdmAttribute attr) continue;
+
+            ctx.CurrentNode = attr;
+            var attrNsUri = doc.ResolveNamespace(attr.Namespace) ?? string.Empty;
+
+            validator.ValidateAttribute(
+                localName: attr.LocalName,
+                namespaceUri: attrNsUri,
+                attributeValue: attr.Value,
+                schemaInfo: null);
+        }
+
+        // ValidateEndOfAttributes is required even when there are no attributes.
+        ctx.CurrentNode = element;
+        validator.ValidateEndOfAttributes(schemaInfo: null);
+
+        // Walk children: buffer adjacent text runs, flush before descending into
+        // child elements. Text-content diagnostics attach to the parent element so
+        // the editor glyph lands on the element row, not an invisible text node.
+        var textBuffer = new StringBuilder();
+
+        foreach (var childId in element.Children)
+        {
+            var child = doc.Resolve(childId);
+
+            if (child is XdmText t)
+            {
+                textBuffer.Append(t.Value);
+                // Do NOT change ctx.CurrentNode here — keep it pointing at the
+                // element so any text-content diagnostic attaches to the element.
+            }
+            else if (child is XdmElement childEl)
+            {
+                // Flush any accumulated text before descending.
+                if (textBuffer.Length > 0)
+                {
+                    ctx.CurrentNode = element;
+                    validator.ValidateText(textBuffer.ToString());
+                    textBuffer.Clear();
+                }
+
+                WalkElement(doc, childEl, validator, nsManager, ctx);
+                ctx.CurrentNode = element;
+            }
+            // Comments and PIs are transparent to XSD validation — skip them.
+        }
+
+        // Flush trailing text (typical for simple-content elements: <year>1978</year>).
+        if (textBuffer.Length > 0)
+        {
+            ctx.CurrentNode = element;
+            validator.ValidateText(textBuffer.ToString());
+            textBuffer.Clear();
+        }
+
+        ctx.CurrentNode = element;
+        validator.ValidateEndElement(schemaInfo: null);
+
+        nsManager.PopScope();
     }
 }
