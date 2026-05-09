@@ -104,6 +104,43 @@ internal sealed class EditorSettingsStore
     }
 
     /// <summary>
+    /// Records a per-document XSD schema override, keyed by the document's absolute file path.
+    /// When called with the same <paramref name="documentPath"/> and <paramref name="xsdPath"/>
+    /// pair that is already persisted, the call is a no-op (no <see cref="Changed"/> event
+    /// is raised and no background save is started).
+    /// </summary>
+    /// <remarks>
+    /// Uses the same copy-on-write pattern as <see cref="UpdateExplorerWidth"/> because
+    /// <see cref="EditorSettings"/> uses <c>init</c>-only properties.
+    /// </remarks>
+    /// <param name="documentPath">Absolute path of the XML document whose schema is being set.</param>
+    /// <param name="xsdPath">Absolute path of the XSD file to use for validation.</param>
+    public void SetPerDocumentSchema(string documentPath, string xsdPath)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(documentPath);
+        ArgumentException.ThrowIfNullOrEmpty(xsdPath);
+
+        var current = _settings.PerDocumentSchema;
+        if (current.TryGetValue(documentPath, out var existing)
+            && string.Equals(existing, xsdPath, StringComparison.Ordinal))
+            return;  // dedupe — no change
+
+        var fresh = new Dictionary<string, string>(current, StringComparer.Ordinal)
+        {
+            [documentPath] = xsdPath,
+        };
+
+        _settings = new EditorSettings
+        {
+            RecentFiles = _settings.RecentFiles,
+            PerDocumentSchema = fresh,
+            ExplorerWidth = _settings.ExplorerWidth,
+        };
+        Changed?.Invoke();
+        _ = SaveAsync();  // fire-and-forget; SemaphoreSlim from earlier serializes saves
+    }
+
+    /// <summary>
     /// Persists the current settings to disk. Can be awaited directly in tests.
     /// </summary>
     internal async Task SaveAsync()

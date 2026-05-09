@@ -162,4 +162,60 @@ public sealed class EditorSettingsStoreTests : IDisposable
 
         Assert.Equal(320, store2.Settings.ExplorerWidth);
     }
+
+    // -----------------------------------------------------------------------
+    // SetPerDocumentSchema behaviour
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void SetPerDocumentSchemaAddsEntry()
+    {
+        var store = new EditorSettingsStore(TempPath("schema-add"));
+        store.SetPerDocumentSchema("/docs/a.xml", "/schemas/a.xsd");
+
+        Assert.True(store.Settings.PerDocumentSchema.ContainsKey("/docs/a.xml"));
+        Assert.Equal("/schemas/a.xsd", store.Settings.PerDocumentSchema["/docs/a.xml"]);
+    }
+
+    [Fact]
+    public void SetPerDocumentSchemaOverridesExisting()
+    {
+        var store = new EditorSettingsStore(TempPath("schema-override"));
+        store.SetPerDocumentSchema("/docs/a.xml", "/schemas/a.xsd");
+        store.SetPerDocumentSchema("/docs/a.xml", "/schemas/b.xsd");
+
+        Assert.Single(store.Settings.PerDocumentSchema);
+        Assert.Equal("/schemas/b.xsd", store.Settings.PerDocumentSchema["/docs/a.xml"]);
+    }
+
+    [Fact]
+    public void SetPerDocumentSchemaSamePathSameValueIsNoOp()
+    {
+        var store = new EditorSettingsStore(TempPath("schema-noop"));
+        var changeCount = 0;
+        store.Changed += () => changeCount++;
+
+        store.SetPerDocumentSchema("/docs/a.xml", "/schemas/a.xsd");
+        store.SetPerDocumentSchema("/docs/a.xml", "/schemas/a.xsd"); // duplicate — must not fire
+
+        Assert.Equal(1, changeCount);
+    }
+
+    [Fact]
+    public async Task RoundTripPreservesPerDocumentSchema()
+    {
+        var path = TempPath("schema-roundtrip");
+        var store1 = new EditorSettingsStore(path);
+        store1.SetPerDocumentSchema("/docs/a.xml", "/schemas/a.xsd");
+        store1.SetPerDocumentSchema("/docs/b.xml", "/schemas/b.xsd");
+
+        await store1.SaveAsync().ConfigureAwait(true);
+
+        var store2 = new EditorSettingsStore(path);
+        await store2.LoadAsync(TestContext.Current.CancellationToken).ConfigureAwait(true);
+
+        Assert.Equal(2, store2.Settings.PerDocumentSchema.Count);
+        Assert.Equal("/schemas/a.xsd", store2.Settings.PerDocumentSchema["/docs/a.xml"]);
+        Assert.Equal("/schemas/b.xsd", store2.Settings.PerDocumentSchema["/docs/b.xml"]);
+    }
 }
