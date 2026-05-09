@@ -53,6 +53,14 @@ public sealed class XmlTreeNodeProvider : ITreeNodeProvider
     public IDiagnosticIndex? DiagnosticIndex { get; set; }
 
     /// <summary>
+    /// Optional match index. When set, <see cref="XmlTreeNode.MatchHighlight"/> returns
+    /// the current find-match state for each node. Set by the editor's <c>FindController</c>
+    /// after each <c>FindService.Find</c> pass; call <see cref="TriggerRefresh"/> to
+    /// propagate highlight changes to the tree view.
+    /// </summary>
+    public IMatchIndex? MatchIndex { get; set; }
+
+    /// <summary>
     /// Manually fires the <see cref="Changed"/> event, causing any bound view (e.g.
     /// <c>NodeListView</c>) to rebuild its rows. Call this after updating
     /// <see cref="DiagnosticIndex"/> so IconKey changes propagate to the UI.

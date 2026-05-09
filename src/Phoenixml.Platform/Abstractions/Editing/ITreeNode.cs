@@ -1,6 +1,25 @@
 namespace Phoenixml.Platform.Abstractions.Editing;
 
 /// <summary>
+/// Match-highlight state for a single tree row, set by the host's find machinery.
+/// </summary>
+/// <remarks>
+/// Three-state so the renderer can distinguish "one of N matches" (subtle yellow tint)
+/// from "the currently navigated match" (active blue). Introduced in Plan 15.
+/// </remarks>
+public enum MatchHighlight
+{
+    /// <summary>No find operation is active, or this node is not a match.</summary>
+    None,
+
+    /// <summary>This node is one of the current matches but is not the active (navigated) match.</summary>
+    Match,
+
+    /// <summary>This node is the currently active (navigated-to) match.</summary>
+    ActiveMatch,
+}
+
+/// <summary>
 /// A single node in a tree shown by <see cref="ITreeNodeProvider"/>. Vocabulary
 /// providers (XML, XSLT, etc.) build their own concrete node types and surface
 /// them through this contract so the generic tree control can render them.
@@ -34,4 +53,11 @@ public interface ITreeNode
     /// the user doesn't end up with <c>@@id</c> after editing.
     /// </summary>
     string EditableName { get; }
+
+    /// <summary>
+    /// Match-highlight state for this node, set by the host's find machinery.
+    /// Returns <see cref="MatchHighlight.None"/> when no find operation is active or
+    /// this node is not a match.
+    /// </summary>
+    MatchHighlight MatchHighlight { get; }
 }

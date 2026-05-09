@@ -153,6 +153,24 @@ public sealed class XmlTreeNode : ITreeNode
         return sb.ToString();
     }
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// When <see cref="XmlTreeNodeProvider.MatchIndex"/> is set on the owning provider,
+    /// returns <see cref="MatchHighlight.ActiveMatch"/> for the currently navigated match
+    /// and <see cref="MatchHighlight.Match"/> for all other matches in the current result
+    /// set. Returns <see cref="MatchHighlight.None"/> when no find operation is active or
+    /// this node is not a match.
+    /// </remarks>
+    public MatchHighlight MatchHighlight
+    {
+        get
+        {
+            if (_provider?.MatchIndex is not IMatchIndex idx) return MatchHighlight.None;
+            if (idx.IsActive(XdmNode.Id)) return MatchHighlight.ActiveMatch;
+            return idx.IsMatch(XdmNode.Id) ? MatchHighlight.Match : MatchHighlight.None;
+        }
+    }
+
     private static string Truncate(string s, int max) =>
         s.Length <= max ? s : s[..(max - 1)] + "…";
 }
