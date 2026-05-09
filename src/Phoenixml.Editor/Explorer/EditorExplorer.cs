@@ -74,6 +74,9 @@ internal sealed class EditorExplorer : DockPanel
             ItemsSource = _roots,
             Background = Brushes.Transparent,
         };
+        // Per-row template captures `this` so .xsd rows can build their own ContextMenu
+        // instead of sharing a tree-level one (the tree-level + visual-tree-walk approach
+        // didn't reliably find the right TreeViewItem on right-click in Avalonia 11.2.4).
         _tree.ItemTemplate = new FuncTreeDataTemplate<ExplorerNode>(
             (n, _) => BuildRow(n),
             n => n.Children);
@@ -86,58 +89,12 @@ internal sealed class EditorExplorer : DockPanel
 
         // Lazy-load children when a folder is expanded.
         _tree.AddHandler(TreeViewItem.ExpandedEvent, OnTreeViewItemExpanded);
-
-        // Attach a single tree-level context menu.  The Opening handler checks which node
-        // is under the pointer and suppresses the menu (by setting args.Cancel) for anything
-        // that isn't an .xsd file.
-        var applyItem = new MenuItem();
-        var contextMenu = new ContextMenu();
-        contextMenu.Items.Add(applyItem);
-
-        applyItem.Click += (_, _) =>
-        {
-            if (contextMenu.PlacementTarget is Control c &&
-                c.DataContext is ExplorerNode clickedNode &&
-                IsXsd(clickedNode.Path))
-            {
-                ApplySchemaRequested?.Invoke(clickedNode.Path);
-            }
-        };
-
-        contextMenu.Opening += (_, args) =>
-        {
-            // Walk up from the visual hit-target to find the nearest TreeViewItem so we can
-            // read its DataContext regardless of which sub-element the pointer landed on.
-            var hitTarget = contextMenu.PlacementTarget as Control;
-            TreeViewItem? tvi = null;
-            Visual? visual = hitTarget;
-            while (visual is not null)
-            {
-                if (visual is TreeViewItem t) { tvi = t; break; }
-                visual = visual.GetVisualParent();
-            }
-
-            if (tvi?.DataContext is ExplorerNode node && IsXsd(node.Path))
-            {
-                var activeDoc = _window.State.ActiveDocument;
-                applyItem.IsEnabled = activeDoc is not null;
-                applyItem.Header = activeDoc is XmlDocument doc
-                    ? $"Apply Schema to {doc.DisplayName}"
-                    : "Apply Schema (no document open)";
-            }
-            else
-            {
-                args.Cancel = true;
-            }
-        };
-
-        _tree.ContextMenu = contextMenu;
     }
 
     private static bool IsXsd(string path) =>
         Path.GetExtension(path).Equals(".xsd", StringComparison.OrdinalIgnoreCase);
 
-    private static StackPanel BuildRow(ExplorerNode node)
+    private StackPanel BuildRow(ExplorerNode node)
     {
         var icon = new TextBlock
         {
@@ -152,11 +109,35 @@ internal sealed class EditorExplorer : DockPanel
             VerticalAlignment = VerticalAlignment.Center,
             Foreground = Brushes.White,
         };
-        return new StackPanel
+        var panel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Children = { icon, label },
         };
+
+        // Attach the "Apply Schema to <active-doc>" context menu directly to the row's
+        // visual — only on .xsd files, so right-click on .xml / folders shows nothing.
+        // The closure captures `node.Path` so the click handler always knows which file.
+        if (IsXsd(node.Path))
+        {
+            var apply = new MenuItem();
+            apply.Click += (_, _) => ApplySchemaRequested?.Invoke(node.Path);
+
+            var menu = new ContextMenu();
+            menu.Items.Add(apply);
+            menu.Opening += (_, _) =>
+            {
+                var doc = _window.State.ActiveDocument;
+                apply.IsEnabled = doc is not null;
+                apply.Header = doc is XmlDocument d
+                    ? $"Apply Schema to {d.DisplayName}"
+                    : "Apply Schema (no document open)";
+            };
+
+            panel.ContextMenu = menu;
+        }
+
+        return panel;
     }
 
     private string? _currentRoot;
