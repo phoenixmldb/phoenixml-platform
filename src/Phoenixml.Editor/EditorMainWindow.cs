@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Phoenixml.Editor.Commands;
+using Phoenixml.Editor.Find;
 using Phoenixml.Editor.Menus;
 using Phoenixml.Editor.Quit;
 using Phoenixml.Editor.Settings;
@@ -30,13 +31,16 @@ namespace Phoenixml.Editor;
 /// This class wraps it via composition and exposes the configured
 /// <see cref="Window"/> instance via <see cref="Window"/>.
 /// </remarks>
-public sealed class EditorMainWindow
+public sealed class EditorMainWindow : IFindHost
 {
     private readonly MainWindow _window;
     private readonly EditorState _state = new();
     private readonly NodeListView _nodeList;
     private readonly EditorValidationService _validation;
     private readonly DiagnosticIndex _diagIndex = new();
+    private readonly MatchIndex _matchIndex = new();
+    private readonly FindBar _findBar = new() { IsVisible = false };
+    private readonly FindController _findController;
     private readonly SchemaCache _schemaCache = new();
     private IDocument? _subscribedDocument;
 
@@ -58,6 +62,14 @@ public sealed class EditorMainWindow
 
         _validation = new EditorValidationService(new SchemaResolver(Settings, _schemaCache));
         _nodeList = new NodeListView();
+
+        // FindController must come after _nodeList so the IFindHost implementation
+        // (which references _nodeList) is ready before any events fire.
+        _findController = new FindController(this, _matchIndex);
+        _findBar.QueryChanged += (q, mc) => _findController.OnQueryChanged(q, mc);
+        _findBar.NextRequested += _findController.OnNext;
+        _findBar.PreviousRequested += _findController.OnPrevious;
+        _findBar.CloseRequested += _findController.OnClose;
 
         // Wire F2 inline rename — routes to element or attribute command based on node kind.
         _nodeList.NodeRenameRequested += (node, newLabel) =>
@@ -179,8 +191,14 @@ public sealed class EditorMainWindow
         Grid.SetColumn(splitter, 1);
         innerGrid.Children.Add(splitter);
 
-        Grid.SetColumn(_nodeList, 2);
-        innerGrid.Children.Add(_nodeList);
+        // Wrap the find bar + node list in a DockPanel so the bar can dock-top above the list.
+        // The DockPanel occupies Col 2; the find bar is initially hidden (IsVisible=false).
+        var rightColumn = new DockPanel { LastChildFill = true };
+        DockPanel.SetDock(_findBar, Dock.Top);
+        rightColumn.Children.Add(_findBar);
+        rightColumn.Children.Add(_nodeList);
+        Grid.SetColumn(rightColumn, 2);
+        innerGrid.Children.Add(rightColumn);
 
         // Persist the explorer width each time the user finishes a drag.
         splitter.DragCompleted += (_, _) =>
@@ -264,6 +282,11 @@ public sealed class EditorMainWindow
             Gesture = new KeyGesture(Key.S, KeyModifiers.Control),
             Command = new RelayCommand(async () =>
                 await SaveFileCommand.ExecuteAsync(this, CancellationToken.None)),
+        });
+        _window.KeyBindings.Add(new KeyBinding
+        {
+            Gesture = new KeyGesture(Key.F, KeyModifiers.Control),
+            Command = new RelayCommand(ShowFindBar),
         });
 
         UpdateStatusBar();
@@ -415,6 +438,8 @@ public sealed class EditorMainWindow
         // Attach the diagnostic index to the new provider so XmlTreeNode.IconKey
         // can reflect the latest validation state.
         doc.TreeNodes.DiagnosticIndex = _diagIndex;
+        // Attach the match index so XmlTreeNode.MatchHighlight reflects find results.
+        doc.TreeNodes.MatchIndex = _matchIndex;
         _nodeList.SetProvider(doc.TreeNodes);
 
         _window.SetTitle($"Phoenixml Editor — {doc.DisplayName}");
@@ -490,6 +515,53 @@ public sealed class EditorMainWindow
 
         return null;
     }
+
+    // -------------------------------------------------------------------------
+    // Find bar
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Shows the find bar and focuses its query TextBox.
+    /// If the bar is already visible, re-focuses and selects all text so the user can
+    /// type a new query without clearing manually (standard text-editor pattern).
+    /// </summary>
+    internal void ShowFindBar()
+    {
+        _findBar.IsVisible = true;
+        _findBar.FocusQueryBox();
+    }
+
+    /// <summary>
+    /// Hides the find bar and resets its state (clears text and counter).
+    /// Called by <see cref="FindController.OnClose"/> via <see cref="IFindHost"/>.
+    /// </summary>
+    internal void HideFindBar()
+    {
+        _findBar.IsVisible = false;
+        _findBar.Reset();
+    }
+
+    // -------------------------------------------------------------------------
+    // IFindHost explicit implementation
+    // -------------------------------------------------------------------------
+
+    /// <inheritdoc/>
+    XmlDocument? IFindHost.ActiveDocument => _state.ActiveDocument;
+
+    /// <inheritdoc/>
+    XmlTreeNodeProvider? IFindHost.ActiveProvider =>
+        _state.ActiveDocument?.TreeNodes as XmlTreeNodeProvider;
+
+    /// <inheritdoc/>
+    void IFindHost.EnsureVisibleAndSelect(string nodeId) =>
+        _nodeList.EnsureVisibleAndSelect(nodeId);
+
+    /// <inheritdoc/>
+    void IFindHost.HideFindBar() => HideFindBar();
+
+    /// <inheritdoc/>
+    void IFindHost.SetMatchCount(int active, int total) =>
+        _findBar.SetMatchCount(active, total);
 }
 
 /// <summary>
