@@ -90,30 +90,21 @@ internal sealed class EditorExplorer : DockPanel
         // Lazy-load children when a folder is expanded.
         _tree.AddHandler(TreeViewItem.ExpandedEvent, OnTreeViewItemExpanded);
 
-        // Tree-level context-menu wiring. Items are rebuilt fresh in ContextRequested
-        // each time so the menu state is deterministic — args.Handled doesn't always
-        // reliably suppress an attached ContextMenu in Avalonia 11, so we treat
-        // "no items" as "no menu" and always Items.Clear() before deciding what to add.
-        var ctxMenu = new ContextMenu();
-        _tree.ContextMenu = ctxMenu;
-
+        // Right-click → "Apply Schema to <active-doc>" on .xsd rows.
+        //
+        // Diagnostics from a prior session confirmed that ContextRequested fires reliably
+        // with the right args.Source, FindAncestorOfType<TreeViewItem> finds the row, and
+        // IsXsd correctly identifies xsd files. What DIDN'T work was the canonical
+        // `_tree.ContextMenu = menu` + populate-on-ContextRequested pattern — Avalonia 11
+        // didn't show items added during the event. So we suppress the default flow with
+        // args.Handled = true and Open() a fresh ContextMenu imperatively at the pointer.
         _tree.ContextRequested += (_, args) =>
         {
-            ctxMenu.Items.Clear();
+            args.Handled = true;  // suppress any default attached-menu opening
 
-            ExplorerNode? node = null;
-            if (args.Source is Visual src)
-            {
-                var tvi = src.FindAncestorOfType<TreeViewItem>(includeSelf: true);
-                if (tvi?.DataContext is ExplorerNode candidate)
-                    node = candidate;
-            }
-
-            if (node is null || !IsXsd(node.Path))
-            {
-                args.Handled = true;
-                return;
-            }
+            if (args.Source is not Visual src) return;
+            var tvi = src.FindAncestorOfType<TreeViewItem>(includeSelf: true);
+            if (tvi?.DataContext is not ExplorerNode node || !IsXsd(node.Path)) return;
 
             var doc = _window.State.ActiveDocument;
             var apply = new MenuItem
@@ -125,7 +116,13 @@ internal sealed class EditorExplorer : DockPanel
             };
             var capturedPath = node.Path;
             apply.Click += (_, _) => ApplySchemaRequested?.Invoke(capturedPath);
-            ctxMenu.Items.Add(apply);
+
+            var menu = new ContextMenu
+            {
+                Placement = PlacementMode.Pointer,
+            };
+            menu.Items.Add(apply);
+            menu.Open(tvi);
         };
     }
 
