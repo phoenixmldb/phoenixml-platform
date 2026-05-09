@@ -156,6 +156,13 @@ public sealed class EditorMainWindow
         innerGrid.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
 
         Explorer = new Phoenixml.Editor.Explorer.EditorExplorer(this);
+        Explorer.ApplySchemaRequested += xsdPath =>
+        {
+            if (_state.ActiveDocument is not XmlDocument doc) return;
+            if (doc.Source is not Uri source) return;
+            Settings.SetPerDocumentSchema(source.LocalPath, xsdPath);
+            _validation.Revalidate();
+        };
         Grid.SetColumn(Explorer, 0);
         innerGrid.Children.Add(Explorer);
 
