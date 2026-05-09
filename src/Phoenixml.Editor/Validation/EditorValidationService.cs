@@ -72,6 +72,14 @@ internal sealed class EditorValidationService : IDisposable
 
     private void OnChanged(DocumentChange _) => ScheduleValidation();
 
+    /// <summary>
+    /// Triggers an immediate validation pass without waiting for the next
+    /// <see cref="Phoenixml.Platform.Documents.Document.Changed"/> event.
+    /// Useful after a schema-override change where the document content is unchanged
+    /// but the schema selection has changed and the diagnostics must be refreshed.
+    /// </summary>
+    public void Revalidate() => ScheduleValidation();
+
     private void ScheduleValidation()
     {
         _debounce?.Cancel();

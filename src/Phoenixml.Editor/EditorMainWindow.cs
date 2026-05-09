@@ -365,6 +365,14 @@ public sealed class EditorMainWindow
     /// and other consumers that want to retarget the explorer's root.</summary>
     internal Phoenixml.Editor.Explorer.EditorExplorer Explorer { get; private set; } = null!;
 
+    /// <summary>
+    /// The validation service for the active document.
+    /// Exposed so menu commands can request an immediate re-validation pass via
+    /// <see cref="Validation.EditorValidationService.Revalidate"/> after schema changes
+    /// that don't mutate the document content.
+    /// </summary>
+    internal EditorValidationService Validation => _validation;
+
     private void OnActiveDocumentChanged(XmlDocument? doc)
     {
         // Unsubscribe from any previously active document.

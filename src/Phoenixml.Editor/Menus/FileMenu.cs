@@ -29,6 +29,10 @@ internal static class FileMenu
         saveAsItem.Click += async (_, _) =>
             await SaveAsFileCommand.ExecuteAsync(window, CancellationToken.None);
 
+        var setSchemaItem = new MenuItem { Header = "_Set Schema..." };
+        setSchemaItem.Click += async (_, _) =>
+            await SetSchemaCommand.ExecuteAsync(window, CancellationToken.None);
+
         var exitItem = new MenuItem { Header = "E_xit" };
         exitItem.Click += (_, _) => ExitCommand.Execute(window.Window);
 
@@ -37,7 +41,11 @@ internal static class FileMenu
         return new MenuItem
         {
             Header = "_File",
-            ItemsSource = new object[] { openItem, recentItem, saveItem, saveAsItem, new Separator(), exitItem },
+            ItemsSource = new object[]
+            {
+                openItem, recentItem, saveItem, saveAsItem, setSchemaItem,
+                new Separator(), exitItem,
+            },
         };
     }
 }
