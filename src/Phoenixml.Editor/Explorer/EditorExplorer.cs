@@ -90,23 +90,17 @@ internal sealed class EditorExplorer : DockPanel
         // Lazy-load children when a folder is expanded.
         _tree.AddHandler(TreeViewItem.ExpandedEvent, OnTreeViewItemExpanded);
 
-        // Tree-level context-menu wiring. Populating items in ContextRequested (rather
-        // than attaching per-row ContextMenu) sidesteps Avalonia's per-control hit-test
-        // quirks: the gesture lands at the tree level, we walk to the TreeViewItem
-        // ancestor of the source visual, and decide what menu (if any) to show.
+        // Tree-level context-menu wiring. Items are rebuilt fresh in ContextRequested
+        // each time so the menu state is deterministic — args.Handled doesn't always
+        // reliably suppress an attached ContextMenu in Avalonia 11, so we treat
+        // "no items" as "no menu" and always Items.Clear() before deciding what to add.
         var ctxMenu = new ContextMenu();
-        var applyItem = new MenuItem();
-        applyItem.Click += (_, _) =>
-        {
-            if (applyItem.Tag is string xsdPath)
-                ApplySchemaRequested?.Invoke(xsdPath);
-        };
-        ctxMenu.Items.Add(applyItem);
         _tree.ContextMenu = ctxMenu;
 
         _tree.ContextRequested += (_, args) =>
         {
-            // args.Source is the visual under the cursor when the gesture fires.
+            ctxMenu.Items.Clear();
+
             ExplorerNode? node = null;
             if (args.Source is Visual src)
             {
@@ -117,17 +111,21 @@ internal sealed class EditorExplorer : DockPanel
 
             if (node is null || !IsXsd(node.Path))
             {
-                args.Handled = true;  // suppress menu on non-xsd rows / blank space
+                args.Handled = true;
                 return;
             }
 
             var doc = _window.State.ActiveDocument;
-            applyItem.IsEnabled = doc is not null;
-            applyItem.Header = doc is XmlDocument d
-                ? $"Apply Schema to {d.DisplayName}"
-                : "Apply Schema (no document open)";
-            applyItem.Tag = node.Path;
-            // Don't set args.Handled — let Avalonia show the menu normally.
+            var apply = new MenuItem
+            {
+                Header = doc is XmlDocument d
+                    ? $"Apply Schema to {d.DisplayName}"
+                    : "Apply Schema (no document open)",
+                IsEnabled = doc is not null,
+            };
+            var capturedPath = node.Path;
+            apply.Click += (_, _) => ApplySchemaRequested?.Invoke(capturedPath);
+            ctxMenu.Items.Add(apply);
         };
     }
 
