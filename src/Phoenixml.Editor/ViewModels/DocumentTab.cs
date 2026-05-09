@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using Phoenixml.Platform.Abstractions.Documents;
 using Phoenixml.Platform.Editor.Xml;
 
 namespace Phoenixml.Editor.ViewModels;
@@ -13,7 +14,7 @@ namespace Phoenixml.Editor.ViewModels;
 internal sealed class DocumentTab : INotifyPropertyChanged
 {
     /// <summary>The document this tab wraps.</summary>
-    public XmlDocument Document { get; }
+    public XmlDocument Document { get; private set; }
 
     /// <summary>
     /// Initializes a new <see cref="DocumentTab"/> for <paramref name="document"/>.
@@ -24,7 +25,24 @@ internal sealed class DocumentTab : INotifyPropertyChanged
     {
         ArgumentNullException.ThrowIfNull(document);
         Document = document;
-        Document.Changed += _ => OnPropertyChanged(nameof(Title));
+        Document.Changed += OnDocumentChanged;
+    }
+
+    /// <summary>
+    /// Swaps the underlying document. Unsubscribes from the old document's Changed event
+    /// and subscribes to the new one. Fires <see cref="PropertyChanged"/> for
+    /// <see cref="Title"/> so any UI binding (e.g. a future tab strip) re-renders.
+    /// No-op when <paramref name="fresh"/> is the same reference as the current document.
+    /// </summary>
+    /// <param name="fresh">The replacement document. Must not be <see langword="null"/>.</param>
+    public void ReplaceDocument(XmlDocument fresh)
+    {
+        ArgumentNullException.ThrowIfNull(fresh);
+        if (ReferenceEquals(Document, fresh)) return;
+        Document.Changed -= OnDocumentChanged;
+        Document = fresh;
+        Document.Changed += OnDocumentChanged;
+        OnPropertyChanged(nameof(Title));
     }
 
     /// <summary>
@@ -42,6 +60,8 @@ internal sealed class DocumentTab : INotifyPropertyChanged
 
     /// <inheritdoc/>
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void OnDocumentChanged(DocumentChange _) => OnPropertyChanged(nameof(Title));
 
     private void OnPropertyChanged([CallerMemberName] string? name = null)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));

@@ -292,9 +292,26 @@ public sealed class EditorMainWindow
                     break;
 
                 case DirtyDocsConfirmDialog.Result.DiscardAll:
-                    // MarkClean is a small lie: we're not persisting. Safe because the
-                    // editor exits immediately; the second pass sees no dirty tabs.
-                    foreach (var t in dirtyTabs) t.Document.MarkClean();
+                    foreach (var t in dirtyTabs)
+                    {
+                        if (t.Document.Source is Uri src && System.IO.File.Exists(src.LocalPath))
+                        {
+                            try
+                            {
+                                var fresh = await Phoenixml.Platform.Editor.Xml.XmlDocument
+                                    .LoadAsync(src.LocalPath, CancellationToken.None);
+                                _state.ReplaceDocument(t.Document, fresh);
+                            }
+                            catch (System.IO.IOException) { t.Document.MarkClean(); }
+                            catch (System.Xml.XmlException) { t.Document.MarkClean(); }
+                            catch (UnauthorizedAccessException) { t.Document.MarkClean(); }
+                        }
+                        else
+                        {
+                            // Never-saved doc — no source to reload from. MarkClean is the only option.
+                            t.Document.MarkClean();
+                        }
+                    }
                     _window.Close();
                     break;
 

@@ -128,4 +128,75 @@ public class EditorStateTabsTests
 
         Assert.Same(docA, fired);
     }
+
+    [Fact]
+    public void ReplaceDocumentSwapsTabDocument()
+    {
+        var state = new EditorState();
+        var docA = MakeDoc("a.xml");
+        var docB = MakeDoc("b.xml");
+        var tab = state.OpenDocument(docA);
+
+        state.ReplaceDocument(docA, docB);
+
+        Assert.Same(docB, tab.Document);
+    }
+
+    [Fact]
+    public void ReplaceDocumentFiresActiveDocumentChangedWhenActive()
+    {
+        var state = new EditorState();
+        var docA = MakeDoc("a.xml");
+        var docB = MakeDoc("b.xml");
+        var docFresh = MakeDoc("b-fresh.xml");
+        state.OpenDocument(docA);
+        state.OpenDocument(docB);
+        // docB's tab is active (last opened)
+
+        XmlDocument? fired = null;
+        state.ActiveDocumentChanged += d => fired = d;
+
+        state.ReplaceDocument(docB, docFresh);
+
+        Assert.Same(docFresh, fired);
+    }
+
+    [Fact]
+    public void ReplaceDocumentDoesNotFireWhenInactive()
+    {
+        var state = new EditorState();
+        var docA = MakeDoc("a.xml");
+        var docB = MakeDoc("b.xml");
+        var docFresh = MakeDoc("b-fresh.xml");
+        var tabA = state.OpenDocument(docA);
+        state.OpenDocument(docB);
+        // Activate A so B is inactive
+        state.ActiveTab = tabA;
+
+        XmlDocument? fired = null;
+        state.ActiveDocumentChanged += d => fired = d;
+
+        state.ReplaceDocument(docB, docFresh);
+
+        Assert.Null(fired);
+    }
+
+    [Fact]
+    public void ReplaceDocumentNoOpsWhenOldNotInTabs()
+    {
+        var state = new EditorState();
+        var docA = MakeDoc("a.xml");
+        var docUnrelated = MakeDoc("unrelated.xml");
+        var docFresh = MakeDoc("fresh.xml");
+        state.OpenDocument(docA);
+
+        XmlDocument? fired = null;
+        state.ActiveDocumentChanged += d => fired = d;
+
+        // docUnrelated is not in any tab — should be a no-op
+        state.ReplaceDocument(docUnrelated, docFresh);
+
+        Assert.Same(docA, state.ActiveTab!.Document);
+        Assert.Null(fired);
+    }
 }

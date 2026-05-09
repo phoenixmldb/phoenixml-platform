@@ -139,6 +139,36 @@ internal sealed class EditorState
     public event Action<DocumentTab?>? ActiveTabChanged;
 
     /// <summary>
+    /// Swaps the document of the tab currently holding <paramref name="old"/> to
+    /// <paramref name="fresh"/>. If the affected tab is the active tab, fires
+    /// <see cref="ActiveDocumentChanged"/> with the new document.
+    /// No-op when <paramref name="old"/> is not currently in any tab.
+    /// </summary>
+    /// <param name="old">The document reference to find and replace. Must not be <see langword="null"/>.</param>
+    /// <param name="fresh">The replacement document. Must not be <see langword="null"/>.</param>
+    public void ReplaceDocument(XmlDocument old, XmlDocument fresh)
+    {
+        ArgumentNullException.ThrowIfNull(old);
+        ArgumentNullException.ThrowIfNull(fresh);
+
+        DocumentTab? affected = null;
+        foreach (var tab in _tabs)
+        {
+            if (ReferenceEquals(tab.Document, old))
+            {
+                affected = tab;
+                break;
+            }
+        }
+        if (affected is null) return;
+
+        affected.ReplaceDocument(fresh);
+
+        if (ReferenceEquals(_activeTab, affected))
+            ActiveDocumentChanged?.Invoke(fresh);
+    }
+
+    /// <summary>
     /// Raised after <see cref="ActiveDocument"/> changes. Preserved for backwards
     /// compatibility — fires alongside <see cref="ActiveTabChanged"/>.
     /// </summary>
