@@ -153,7 +153,34 @@ internal sealed class EditorExplorer : DockPanel
         // opened a sibling via Recent Files. Re-root only when the file is elsewhere.
         if (_currentRoot is not null && IsUnderRoot(folder, _currentRoot)) return;
 
-        SetRoot(folder);
+        // Smart auto-root: if the file's parent has a sibling named "schemas" or "xsd"
+        // (the data/ + schemas/ layout), root one level UP so both folders are visible
+        // — otherwise the user can't see the schemas, can't right-click them, can't take
+        // advantage of the explorer at all. The auto-detect heuristic walks outward to
+        // find schemas; the explorer should follow the same principle.
+        var smartRoot = ChooseSmartRoot(folder);
+        SetRoot(smartRoot);
+    }
+
+    private static readonly string[] s_schemaSubfolderNames = ["schemas", "xsd"];
+
+    /// <summary>
+    /// Chooses where to root the explorer when a document opens. Walks up one level
+    /// looking for a sibling <c>schemas/</c> or <c>xsd/</c> folder; if found, roots at
+    /// the parent so both the document folder and the schemas folder are visible.
+    /// Otherwise roots at the document's own folder.
+    /// </summary>
+    private static string ChooseSmartRoot(string fileFolder)
+    {
+        var parent = Path.GetDirectoryName(fileFolder);
+        if (parent is null || !Directory.Exists(parent)) return fileFolder;
+
+        foreach (var sub in s_schemaSubfolderNames)
+        {
+            if (Directory.Exists(Path.Combine(parent, sub)))
+                return parent;
+        }
+        return fileFolder;
     }
 
     internal void SetRoot(string folder)
@@ -170,6 +197,15 @@ internal sealed class EditorExplorer : DockPanel
         var rootNode = new ExplorerNode(folder);
         rootNode.EnsureChildrenLoaded();
         _roots.Add(rootNode);
+
+        // Auto-expand the root TreeViewItem after Avalonia realizes its container.
+        // Without this, the user has to click the chevron just to see anything —
+        // fails the lazy-dev principle since the loaded contents are right there.
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            var firstItem = _tree.GetVisualDescendants().OfType<TreeViewItem>().FirstOrDefault();
+            if (firstItem is not null) firstItem.IsExpanded = true;
+        }, Avalonia.Threading.DispatcherPriority.Background);
     }
 
     private static bool IsUnderRoot(string folder, string root)
