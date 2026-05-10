@@ -70,6 +70,8 @@ public sealed class EditorMainWindow : IFindHost
         _findBar.NextRequested += _findController.OnNext;
         _findBar.PreviousRequested += _findController.OnPrevious;
         _findBar.CloseRequested += _findController.OnClose;
+        _findBar.ReplaceCurrentRequested += rep => _findController.OnReplaceCurrent(rep);
+        _findBar.ReplaceAllRequested += rep => _findController.OnReplaceAll(rep);
 
         // Wire F2 inline rename — routes to element or attribute command based on node kind.
         _nodeList.NodeRenameRequested += (node, newLabel) =>
@@ -287,6 +289,11 @@ public sealed class EditorMainWindow : IFindHost
         {
             Gesture = new KeyGesture(Key.F, KeyModifiers.Control),
             Command = new RelayCommand(ShowFindBar),
+        });
+        _window.KeyBindings.Add(new KeyBinding
+        {
+            Gesture = new KeyGesture(Key.H, KeyModifiers.Control),
+            Command = new RelayCommand(ShowFindBarInReplaceMode),
         });
 
         UpdateStatusBar();
@@ -529,6 +536,16 @@ public sealed class EditorMainWindow : IFindHost
     {
         _findBar.IsVisible = true;
         _findBar.FocusQueryBox();
+    }
+
+    /// <summary>
+    /// Shows the find bar in Replace mode (expands the Replace row and focuses the Replace
+    /// TextBox). Triggered by Ctrl+H. Standard text-editor binding.
+    /// </summary>
+    internal void ShowFindBarInReplaceMode()
+    {
+        _findBar.IsVisible = true;
+        _findBar.OpenReplaceMode();
     }
 
     /// <summary>
