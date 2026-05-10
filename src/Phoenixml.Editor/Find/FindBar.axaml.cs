@@ -32,6 +32,11 @@ public sealed partial class FindBar : UserControl
         var prevButton = this.FindControl<Button>("PrevButton")!;
         var nextButton = this.FindControl<Button>("NextButton")!;
         var closeButton = this.FindControl<Button>("CloseButton")!;
+        var replaceToggle = this.FindControl<ToggleButton>("ReplaceToggle")!;
+        var replaceRow = this.FindControl<StackPanel>("ReplaceRow")!;
+        var replaceBox = this.FindControl<TextBox>("ReplaceBox")!;
+        var replaceButton = this.FindControl<Button>("ReplaceButton")!;
+        var replaceAllButton = this.FindControl<Button>("ReplaceAllButton")!;
 
         // Auto-focus when the bar is attached to the visual tree (called every time
         // IsVisible flips to true and the bar enters the tree).
@@ -76,6 +81,16 @@ public sealed partial class FindBar : UserControl
         prevButton.Click += (_, _) => PreviousRequested?.Invoke();
         nextButton.Click += (_, _) => NextRequested?.Invoke();
         closeButton.Click += (_, _) => CloseRequested?.Invoke();
+
+        replaceToggle.IsCheckedChanged += (_, _) =>
+        {
+            var show = replaceToggle.IsChecked == true;
+            replaceRow.IsVisible = show;
+            replaceToggle.Content = show ? "▾" : "▸";
+        };
+
+        replaceButton.Click += (_, _) => ReplaceCurrentRequested?.Invoke(replaceBox.Text ?? string.Empty);
+        replaceAllButton.Click += (_, _) => ReplaceAllRequested?.Invoke(replaceBox.Text ?? string.Empty);
     }
 
     // -------------------------------------------------------------------------
@@ -97,6 +112,22 @@ public sealed partial class FindBar : UserControl
 
     /// <summary>Raised on Escape inside the TextBox or click of the Close button.</summary>
     public event Action? CloseRequested;
+
+    /// <summary>
+    /// Raised when the user clicks the Replace button. Argument is the replacement string
+    /// (may be empty). Applies to the currently active match only.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not triggered by Enter on the Replace TextBox to avoid accidental
+    /// destructive-action mis-fires.
+    /// </remarks>
+    public event Action<string>? ReplaceCurrentRequested;
+
+    /// <summary>
+    /// Raised when the user clicks the Replace All button. Argument is the replacement string
+    /// (may be empty). Applies to all current matches.
+    /// </summary>
+    public event Action<string>? ReplaceAllRequested;
 #pragma warning restore CA1003
 
     /// <summary>
@@ -136,8 +167,22 @@ public sealed partial class FindBar : UserControl
     }
 
     /// <summary>
-    /// Resets the bar to empty state: clears the TextBox content and the counter.
-    /// Does not fire <see cref="QueryChanged"/>.
+    /// Expands the Replace row and focuses the Replace TextBox.
+    /// If the row is already visible, focus is re-applied so the user can type
+    /// the replacement string without any further interaction.
+    /// </summary>
+    public void OpenReplaceMode()
+    {
+        var replaceToggle = this.FindControl<ToggleButton>("ReplaceToggle")!;
+        replaceToggle.IsChecked = true;  // triggers IsCheckedChanged → row visible + chevron update
+        var replaceBox = this.FindControl<TextBox>("ReplaceBox")!;
+        Dispatcher.UIThread.Post(() => replaceBox.Focus(), DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// Resets the bar to empty state: clears both the Find and Replace TextBox content
+    /// and the counter. Does not fire <see cref="QueryChanged"/>.
+    /// The Replace row toggle state is preserved — if the user had it open it stays open.
     /// </summary>
     public void Reset()
     {
@@ -146,11 +191,13 @@ public sealed partial class FindBar : UserControl
 
         var queryBox = this.FindControl<TextBox>("QueryBox")!;
         var counter = this.FindControl<TextBlock>("CounterText")!;
+        var replaceBox = this.FindControl<TextBox>("ReplaceBox")!;
         // Suppress the TextChanged → debounce → QueryChanged path while resetting.
         queryBox.TextChanged -= OnTextChangedForDebounce;
         queryBox.Text = string.Empty;
         queryBox.TextChanged += OnTextChangedForDebounce;
         counter.Text = string.Empty;
+        replaceBox.Text = string.Empty;
     }
 
     // -------------------------------------------------------------------------

@@ -5,24 +5,40 @@
             BorderBrush="#4A4A4F"
             BorderThickness="0,0,0,1"
             Padding="6,4">
-        <StackPanel Orientation="Horizontal" Spacing="4">
-            <TextBox Name="QueryBox" Width="240" Watermark="Find"
-                     VerticalAlignment="Center" />
-            <ToggleButton Name="MatchCaseToggle" Content="Aa" Width="28"
-                          Height="28" VerticalAlignment="Center"
-                          ToolTip.Tip="Match case" />
-            <TextBlock Name="CounterText" VerticalAlignment="Center"
-                       Foreground="#9D9D9D"
-                       MinWidth="80" />
-            <Button Name="PrevButton" Content="↑" Width="28" Height="28"
-                    VerticalAlignment="Center"
-                    ToolTip.Tip="Previous (Shift+Enter)" />
-            <Button Name="NextButton" Content="↓" Width="28" Height="28"
-                    VerticalAlignment="Center"
-                    ToolTip.Tip="Next (Enter)" />
-            <Button Name="CloseButton" Content="✕" Width="28" Height="28"
-                    VerticalAlignment="Center"
-                    ToolTip.Tip="Close (Esc)" />
+        <StackPanel Orientation="Vertical" Spacing="4">
+            <!-- Row 0: Find -->
+            <StackPanel Orientation="Horizontal" Spacing="4">
+                <ToggleButton Name="ReplaceToggle" Content="▸" Width="22"
+                              Height="28" VerticalAlignment="Center"
+                              ToolTip.Tip="Toggle replace" />
+                <TextBox Name="QueryBox" Width="240" Watermark="Find"
+                         VerticalAlignment="Center" />
+                <ToggleButton Name="MatchCaseToggle" Content="Aa" Width="28"
+                              Height="28" VerticalAlignment="Center"
+                              ToolTip.Tip="Match case" />
+                <TextBlock Name="CounterText" VerticalAlignment="Center"
+                           Foreground="#9D9D9D"
+                           MinWidth="80" />
+                <Button Name="PrevButton" Content="↑" Width="28" Height="28"
+                        VerticalAlignment="Center"
+                        ToolTip.Tip="Previous (Shift+Enter)" />
+                <Button Name="NextButton" Content="↓" Width="28" Height="28"
+                        VerticalAlignment="Center"
+                        ToolTip.Tip="Next (Enter)" />
+                <Button Name="CloseButton" Content="✕" Width="28" Height="28"
+                        VerticalAlignment="Center"
+                        ToolTip.Tip="Close (Esc)" />
+            </StackPanel>
+            <!-- Row 1: Replace (collapsed by default) -->
+            <StackPanel Name="ReplaceRow" Orientation="Horizontal" Spacing="4" IsVisible="False">
+                <Border Width="22" />
+                <TextBox Name="ReplaceBox" Width="240" Watermark="Replace"
+                         VerticalAlignment="Center" />
+                <Button Name="ReplaceButton" Content="Replace"
+                        VerticalAlignment="Center" />
+                <Button Name="ReplaceAllButton" Content="Replace All"
+                        VerticalAlignment="Center" />
+            </StackPanel>
         </StackPanel>
     </Border>
 </UserControl>
