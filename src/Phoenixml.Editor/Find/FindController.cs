@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using PhoenixmlDb.Core;
+using Phoenixml.Platform.Abstractions.Documents;
 using Phoenixml.Platform.Editor.Xml;
+using Phoenixml.Platform.Editor.Xml.Editing;
 using Phoenixml.Platform.Editor.Xml.Find;
 using Phoenixml.Platform.Editor.Xml.Tree;
 
@@ -55,6 +57,10 @@ internal sealed class FindController
     private readonly MatchIndex _index;
     private IReadOnlyList<NodeId> _matches = [];
     private int _activeIndex = -1;
+    private string _lastQuery = string.Empty;
+    private bool _lastMatchCase;
+    private XmlDocument? _subscribedDoc;
+    private bool _refreshing;
 
     /// <summary>
     /// Initializes a new <see cref="FindController"/> with the given host and match index.
@@ -71,26 +77,18 @@ internal sealed class FindController
 
     /// <summary>
     /// Called when the user changes the query or the match-case toggle.
-    /// Runs the find, resets the active index to the first match, refreshes the tree.
+    /// Captures the new query state, subscribes to document changes, and refreshes matches.
     /// </summary>
     /// <param name="query">The new search string.</param>
     /// <param name="matchCase"><see langword="true"/> for case-sensitive search.</param>
     public void OnQueryChanged(string query, bool matchCase)
     {
-        if (_host.ActiveDocument is not XmlDocument doc)
-        {
-            _matches = [];
-            _activeIndex = -1;
-            _index.Reset([], null);
-            _host.SetMatchCount(0, 0);
-            return;
-        }
-
-        _matches = FindService.Find(doc, query, matchCase);
-        _activeIndex = _matches.Count > 0 ? 0 : -1;
-        UpdateIndex();
-        ShowActiveInTree();
-        _host.SetMatchCount(_activeIndex < 0 ? 0 : _activeIndex + 1, _matches.Count);
+        _lastQuery = query;
+        _lastMatchCase = matchCase;
+        // Reset active index to first match when the query changes.
+        _activeIndex = 0;
+        SubscribeToActiveDocument();
+        RefreshMatches();
     }
 
     /// <summary>
@@ -121,19 +119,112 @@ internal sealed class FindController
 
     /// <summary>
     /// Clears all match state, triggers a tree refresh, and hides the find bar.
+    /// Unsubscribes from the active document's <c>Changed</c> event.
     /// </summary>
     public void OnClose()
     {
+        UnsubscribeFromActiveDocument();
         _matches = [];
         _activeIndex = -1;
+        _lastQuery = string.Empty;
         _index.Reset([], null);
         _host.ActiveProvider?.TriggerRefresh();
         _host.HideFindBar();
     }
 
+    /// <summary>
+    /// Replaces the currently active match with <paramref name="replacement"/>.
+    /// Builds a command via <see cref="ReplaceService"/> and pushes it to the document's
+    /// undo stack. A subsequent <c>Document.Changed</c> fires and re-runs
+    /// <see cref="RefreshMatches"/> automatically.
+    /// </summary>
+    /// <param name="replacement">The replacement string. Must not be <see langword="null"/>.</param>
+    public void OnReplaceCurrent(string replacement)
+    {
+        ArgumentNullException.ThrowIfNull(replacement);
+        if (_host.ActiveDocument is not XmlDocument doc) return;
+        if (_activeIndex < 0 || _activeIndex >= _matches.Count) return;
+
+        var single = new[] { _matches[_activeIndex] };
+        var commands = ReplaceService.BuildReplacements(doc, single, _lastQuery, replacement, _lastMatchCase);
+        if (commands.Count == 0) return;
+
+        IEditorCommand cmd = commands.Count == 1
+            ? commands[0]
+            : new CompoundCommand(commands, "Replace");
+        doc.Undo.Execute(cmd);
+        // Document.Changed fires → OnDocumentChanged → RefreshMatches.
+    }
+
+    /// <summary>
+    /// Replaces all current matches with <paramref name="replacement"/>.
+    /// Wraps all edits in a <see cref="CompoundCommand"/> so the entire Replace All operation
+    /// is a single undo step.
+    /// </summary>
+    /// <param name="replacement">The replacement string. Must not be <see langword="null"/>.</param>
+    public void OnReplaceAll(string replacement)
+    {
+        ArgumentNullException.ThrowIfNull(replacement);
+        if (_host.ActiveDocument is not XmlDocument doc) return;
+        if (_matches.Count == 0) return;
+
+        var commands = ReplaceService.BuildReplacements(doc, _matches, _lastQuery, replacement, _lastMatchCase);
+        if (commands.Count == 0) return;
+
+        var compound = new CompoundCommand(commands, $"Replace all '{_lastQuery}' with '{replacement}'");
+        doc.Undo.Execute(compound);
+        // Document.Changed fires → OnDocumentChanged → RefreshMatches.
+    }
+
     // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
+
+    private void RefreshMatches()
+    {
+        if (_refreshing) return;
+        _refreshing = true;
+        try
+        {
+            if (_host.ActiveDocument is not XmlDocument doc)
+            {
+                _matches = [];
+                _activeIndex = -1;
+                UpdateIndex();
+                _host.SetMatchCount(0, 0);
+                return;
+            }
+
+            _matches = FindService.Find(doc, _lastQuery, _lastMatchCase);
+            _activeIndex = _matches.Count > 0
+                ? Math.Min(_activeIndex >= 0 ? _activeIndex : 0, _matches.Count - 1)
+                : -1;
+            UpdateIndex();
+            if (_activeIndex >= 0) ShowActiveInTree();
+            _host.SetMatchCount(_activeIndex < 0 ? 0 : _activeIndex + 1, _matches.Count);
+        }
+        finally
+        {
+            _refreshing = false;
+        }
+    }
+
+    private void OnDocumentChanged(DocumentChange _) => RefreshMatches();
+
+    private void SubscribeToActiveDocument()
+    {
+        var doc = _host.ActiveDocument;
+        if (ReferenceEquals(doc, _subscribedDoc)) return;
+        if (_subscribedDoc is not null) _subscribedDoc.Changed -= OnDocumentChanged;
+        _subscribedDoc = doc;
+        if (_subscribedDoc is not null) _subscribedDoc.Changed += OnDocumentChanged;
+    }
+
+    private void UnsubscribeFromActiveDocument()
+    {
+        if (_subscribedDoc is not null) _subscribedDoc.Changed -= OnDocumentChanged;
+        _subscribedDoc = null;
+    }
 
     private void UpdateIndex()
     {
