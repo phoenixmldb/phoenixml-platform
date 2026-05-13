@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Xml.Schema;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -14,6 +15,7 @@ using Phoenixml.Platform.Abstractions.Editing;
 using Phoenixml.Platform.Editor.Xml;
 using Phoenixml.Platform.Editor.Xml.Editing;
 using Phoenixml.Platform.Editor.Xml.Tree;
+using Phoenixml.Platform.Editor.Xml.Validation;
 using Phoenixml.Platform.Editing;
 using Phoenixml.Platform;
 using Phoenixml.Platform.Shell;
@@ -132,6 +134,53 @@ public sealed class EditorMainWindow : IFindHost
             var cmd = new InsertAttributeCommand(doc, el.Id, "newAttr", string.Empty);
             doc.Undo.Execute(cmd);
             _nodeList.BeginRenameById(cmd.InsertedId.ToString());
+        };
+
+        // Populate insert options from the active schema before the context menu opens.
+        _nodeList.BuildingInsertOptions += (node, options) =>
+        {
+            if (_state.ActiveDocument is not XmlDocument doc) return;
+            if (node is not XmlTreeNode xmlNode) return;
+            if (xmlNode.XdmNode is not XdmElement) return;
+
+            var schemas = new SchemaResolver(Settings, _schemaCache).Resolve(doc);
+            if (schemas is null) return;
+
+            var resolved = SchemaInsertOptionsService.Resolve(doc, xmlNode.XdmNode.Id, schemas);
+            options.ChildElementNames = resolved.ChildElementNames;
+            options.AttributeNames = resolved.AttributeNames;
+        };
+
+        // Schema-aware Insert Child Element handler.
+        _nodeList.NodeInsertChildElementWithNameRequested += (node, chosenName) =>
+        {
+            if (_state.ActiveDocument is not XmlDocument doc) return;
+            if (node is not XmlTreeNode xmlNode) return;
+            if (xmlNode.XdmNode is not XdmElement el) return;
+
+            _nodeList.ExpandById(xmlNode.Id);
+            var cmd = new InsertElementCommand(doc, el.Id, chosenName);
+            doc.Undo.Execute(cmd);
+
+            var insertedIdStr = cmd.InsertedId.ToString();
+            var schemas = new SchemaResolver(Settings, _schemaCache).Resolve(doc);
+            if (schemas is not null && IsSimpleTypedElement(doc, cmd.InsertedId, schemas))
+                _nodeList.BeginValueEditById(insertedIdStr);
+            else
+                _nodeList.SelectById(insertedIdStr);
+        };
+
+        // Schema-aware Insert Attribute handler — attributes always auto-value-edit.
+        _nodeList.NodeInsertAttributeWithNameRequested += (node, chosenName) =>
+        {
+            if (_state.ActiveDocument is not XmlDocument doc) return;
+            if (node is not XmlTreeNode xmlNode) return;
+            if (xmlNode.XdmNode is not XdmElement el) return;
+
+            _nodeList.ExpandById(xmlNode.Id);
+            var cmd = new InsertAttributeCommand(doc, el.Id, chosenName, string.Empty);
+            doc.Undo.Execute(cmd);
+            _nodeList.BeginValueEditById(cmd.InsertedId.ToString());
         };
 
         _nodeList.NodeDeleteRequested += node =>
@@ -472,6 +521,33 @@ public sealed class EditorMainWindow : IFindHost
             if (doc.Resolve(childId) is XdmElement) return false;
         }
         return true;
+    }
+
+    /// <summary>
+    /// Returns <see langword="true"/> when the element identified by <paramref name="elementId"/>
+    /// is declared in <paramref name="schemas"/> with a simple type or a complex type whose
+    /// content type is <see cref="XmlSchemaContentType.TextOnly"/>.
+    /// </summary>
+    /// <remarks>
+    /// Used post-insert to decide whether to drop the user directly into value-edit mode.
+    /// <c>TextOnly</c> means the complex type allows text content only (attributes permitted),
+    /// which behaves identically to a simple type for value-editing purposes.
+    /// <c>Mixed</c> content is intentionally excluded — auto-entering a value cell on a
+    /// mixed-content element would be confusing.
+    /// </remarks>
+    private static bool IsSimpleTypedElement(
+        XmlDocument doc,
+        PhoenixmlDb.Core.NodeId elementId,
+        XmlSchemaSet schemas)
+    {
+        if (SchemaElementResolver.Resolve(doc, elementId, schemas) is not XmlSchemaElement schemaElement)
+            return false;
+        return schemaElement.ElementSchemaType switch
+        {
+            XmlSchemaSimpleType => true,
+            XmlSchemaComplexType c => c.ContentType == XmlSchemaContentType.TextOnly,
+            _ => false,
+        };
     }
 
     /// <summary>
