@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
@@ -33,9 +34,68 @@ public sealed partial class XPathQueryBar : UserControl
             Dispatcher.UIThread.Post(() => queryBox.Focus(), DispatcherPriority.Background);
         };
 
+        var popup = this.FindControl<Popup>("CompletionPopup")!;
+        var completionList = this.FindControl<ListBox>("CompletionList")!;
+
+        // Open / refresh the popup as the user types. Trigger only when the caret sits
+        // inside a word run of XPath function name characters.
+        queryBox.TextChanged += (_, _) =>
+        {
+            var prefix = WordPrefixAtCaret(queryBox.Text, queryBox.CaretIndex);
+            if (prefix is null || prefix.Length == 0)
+            {
+                popup.IsOpen = false;
+                return;
+            }
+            var matches = XPathFunctionList.Match(prefix);
+            if (matches.Count == 0)
+            {
+                popup.IsOpen = false;
+                return;
+            }
+            completionList.ItemsSource = matches;
+            completionList.SelectedIndex = 0;
+            popup.IsOpen = true;
+        };
+
         // XPath compile can be expensive — submit only on Enter. No debounce.
+        // Up/Down cycle through history (most-recent first when going Up).
+        // When the completion popup is open, Up/Down navigate the popup instead.
+        int historyCursor = -1;
         queryBox.KeyDown += (_, e) =>
         {
+            // Popup-priority handling: Tab accepts, Esc closes, Up/Down navigate.
+            if (popup.IsOpen)
+            {
+                if (e.Key == Key.Tab)
+                {
+                    if (completionList.SelectedItem is string pick)
+                        ReplacePrefixAtCaret(queryBox, pick);
+                    popup.IsOpen = false;
+                    e.Handled = true;
+                    return;
+                }
+                if (e.Key == Key.Escape)
+                {
+                    popup.IsOpen = false;
+                    e.Handled = true;
+                    return;
+                }
+                if (e.Key == Key.Up)
+                {
+                    completionList.SelectedIndex = Math.Max(0, completionList.SelectedIndex - 1);
+                    e.Handled = true;
+                    return;
+                }
+                if (e.Key == Key.Down)
+                {
+                    var count = (completionList.ItemsSource as System.Collections.ICollection)?.Count ?? 0;
+                    completionList.SelectedIndex = Math.Min(count - 1, completionList.SelectedIndex + 1);
+                    e.Handled = true;
+                    return;
+                }
+            }
+
             if (e.Key == Key.Enter)
             {
                 if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
@@ -45,12 +105,31 @@ public sealed partial class XPathQueryBar : UserControl
                 else
                 {
                     QuerySubmitted?.Invoke(queryBox.Text ?? string.Empty);
+                    historyCursor = -1;
                 }
                 e.Handled = true;
             }
             else if (e.Key == Key.Escape)
             {
                 CloseRequested?.Invoke();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Up)
+            {
+                var hist = HistoryRequested?.Invoke();
+                if (hist is null || hist.Count == 0) return;
+                historyCursor = Math.Min(historyCursor + 1, hist.Count - 1);
+                queryBox.Text = hist[historyCursor];
+                queryBox.CaretIndex = queryBox.Text.Length;
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Down)
+            {
+                var hist = HistoryRequested?.Invoke();
+                if (hist is null || hist.Count == 0) return;
+                historyCursor = Math.Max(historyCursor - 1, -1);
+                queryBox.Text = historyCursor == -1 ? string.Empty : hist[historyCursor];
+                queryBox.CaretIndex = queryBox.Text.Length;
                 e.Handled = true;
             }
         };
@@ -60,12 +139,41 @@ public sealed partial class XPathQueryBar : UserControl
         closeButton.Click += (_, _) => CloseRequested?.Invoke();
     }
 
+    private static string? WordPrefixAtCaret(string? text, int caret)
+    {
+        if (string.IsNullOrEmpty(text) || caret <= 0) return null;
+        int start = caret;
+        while (start > 0 && IsWordChar(text[start - 1])) start--;
+        if (start == caret) return null;
+        return text.Substring(start, caret - start);
+    }
+
+    private static void ReplacePrefixAtCaret(TextBox tb, string replacement)
+    {
+        var text = tb.Text ?? string.Empty;
+        var caret = tb.CaretIndex;
+        int start = caret;
+        while (start > 0 && IsWordChar(text[start - 1])) start--;
+        var newText = string.Concat(text.AsSpan(0, start), replacement, text.AsSpan(caret));
+        tb.Text = newText;
+        tb.CaretIndex = start + replacement.Length;
+    }
+
+    private static bool IsWordChar(char c) =>
+        char.IsLetterOrDigit(c) || c == '-' || c == '_';
+
 #pragma warning disable CA1003 // Action<T> design is intentional per existing codebase conventions
     /// <summary>Raised on Enter inside the TextBox or click of the Next button.</summary>
     public event Action<string>? QuerySubmitted;
 
     /// <summary>Raised on Shift+Enter inside the TextBox or click of the Previous button.</summary>
     public event Action? PreviousRequested;
+
+    /// <summary>
+    /// Requests a snapshot of submitted-XPath history from the host. Returns the list
+    /// most-recent first. Called when Up/Down cycles through history.
+    /// </summary>
+    public event Func<IReadOnlyList<string>>? HistoryRequested;
 
     /// <summary>Raised on Escape inside the TextBox or click of the Close button.</summary>
     public event Action? CloseRequested;

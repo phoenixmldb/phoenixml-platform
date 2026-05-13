@@ -47,6 +47,7 @@ internal sealed class XPathQueryController
 {
     private readonly IXPathQueryHost _host;
     private readonly MatchIndex _index;
+    private readonly XPathHistory _history = new();
     private IReadOnlyList<NodeId> _matches = [];
     private int _activeIndex = -1;
     private XmlDocument? _subscribedDoc;
@@ -76,10 +77,14 @@ internal sealed class XPathQueryController
         }
 
         _lastQuery = xpath;
+        _history.Record(xpath);
         _activeIndex = 0;
         SubscribeToActiveDocument();
         await RefreshAsync().ConfigureAwait(false);
     }
+
+    /// <summary>Snapshot of submitted XPath history, most-recent first.</summary>
+    public IReadOnlyList<string> SnapshotHistory() => _history.Entries.ToArray();
 
     /// <summary>Advances to the next match, wrapping around.</summary>
     public void OnNext()

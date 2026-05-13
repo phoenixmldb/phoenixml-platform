@@ -166,6 +166,10 @@ public sealed partial class NodeListView : UserControl
             return;
         }
 
+        // Auto-scroll the ListBox when the cursor is within EdgeScrollZone of the top
+        // or bottom of the visible viewport. One row per DragOver tick.
+        AutoScrollOnDragOver(e);
+
         if (e.Source is not Avalonia.Visual src)
         {
             e.DragEffects = DragDropEffects.None;
@@ -197,6 +201,28 @@ public sealed partial class NodeListView : UserControl
     }
 
     private void OnRowDragLeave(object? sender, DragEventArgs e) => ClearDropIndicator();
+
+    /// <summary>
+    /// Auto-scrolls the row host when the cursor is near the top or bottom edge of the
+    /// viewport during a drag. Step size is one row-height per DragOver tick so the
+    /// scroll feels responsive but doesn't run away.
+    /// </summary>
+    private void AutoScrollOnDragOver(DragEventArgs e)
+    {
+        var host = this.FindControl<ListBox>("RowsHost");
+        if (host is null) return;
+        var scroll = host.Scroll;
+        if (scroll is null) return;
+
+        const double EdgeScrollZone = 24;
+        const double StepDip = 18;
+        var pos = e.GetPosition(host);
+        var height = host.Bounds.Height;
+        if (pos.Y < EdgeScrollZone)
+            scroll.Offset = scroll.Offset.WithY(Math.Max(0, scroll.Offset.Y - StepDip));
+        else if (pos.Y > height - EdgeScrollZone)
+            scroll.Offset = scroll.Offset.WithY(scroll.Offset.Y + StepDip);
+    }
 
     private void OnRowDrop(object? sender, DragEventArgs e)
     {
@@ -308,6 +334,12 @@ public sealed partial class NodeListView : UserControl
     /// selected row. The host should route to a vocabulary command (e.g. DeleteNodeCommand).
     /// </summary>
     public event Action<ITreeNode>? NodeDeleteRequested;
+
+    /// <summary>
+    /// Raised when the user picks "Copy XPath" from a row's context menu. The host is expected
+    /// to build the canonical XPath for the node and write it to the system clipboard.
+    /// </summary>
+    public event Action<ITreeNode>? NodeCopyXPathRequested;
 
     /// <summary>
     /// Raised just before the row context menu opens so the host can populate schema-aware
@@ -667,6 +699,12 @@ public sealed partial class NodeListView : UserControl
     {
         if (sender is MenuItem mi && mi.Tag is NodeRowViewModel row)
             NodeDeleteRequested?.Invoke(row.Node);
+    }
+
+    private void CopyXPath_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem mi && mi.Tag is NodeRowViewModel row)
+            NodeCopyXPathRequested?.Invoke(row.Node);
     }
 
     /// <summary>

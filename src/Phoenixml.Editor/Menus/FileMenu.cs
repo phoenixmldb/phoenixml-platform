@@ -33,6 +33,9 @@ internal static class FileMenu
         setSchemaItem.Click += async (_, _) =>
             await SetSchemaCommand.ExecuteAsync(window, CancellationToken.None);
 
+        var compareItem = new MenuItem { Header = "_Compare With..." };
+        compareItem.Click += async (_, _) => await window.CompareWithFileAsync();
+
         var exitItem = new MenuItem { Header = "E_xit" };
         exitItem.Click += (_, _) => ExitCommand.Execute(window.Window);
 
@@ -44,7 +47,7 @@ internal static class FileMenu
             ItemsSource = new object[]
             {
                 openItem, recentItem, saveItem, saveAsItem, setSchemaItem,
-                new Separator(), exitItem,
+                new Separator(), compareItem, new Separator(), exitItem,
             },
         };
     }

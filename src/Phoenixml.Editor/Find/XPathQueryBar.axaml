@@ -8,10 +8,22 @@
         <StackPanel Orientation="Horizontal" Spacing="4">
             <TextBlock Text="XPath" VerticalAlignment="Center"
                        Foreground="#9D9D9D" MinWidth="40" />
-            <TextBox Name="QueryBox" Width="320"
-                     Watermark="//book[year='1978']"
-                     VerticalAlignment="Center"
-                     FontFamily="Cascadia Mono, Consolas, monospace" />
+            <Panel Width="320" VerticalAlignment="Center">
+                <TextBox Name="QueryBox"
+                         Watermark="//book[year='1978']"
+                         FontFamily="Cascadia Mono, Consolas, monospace" />
+                <Popup Name="CompletionPopup"
+                       PlacementTarget="{Binding ElementName=QueryBox}"
+                       Placement="BottomEdgeAlignedLeft"
+                       IsLightDismissEnabled="True">
+                    <Border Background="#252526" BorderBrush="#4A4A4F" BorderThickness="1" Padding="4">
+                        <ListBox Name="CompletionList"
+                                 MaxHeight="240" Width="220"
+                                 Background="Transparent"
+                                 FontFamily="Cascadia Mono, Consolas, monospace" />
+                    </Border>
+                </Popup>
+            </Panel>
             <TextBlock Name="CounterText" VerticalAlignment="Center"
                        Foreground="#9D9D9D"
                        MinWidth="160" />

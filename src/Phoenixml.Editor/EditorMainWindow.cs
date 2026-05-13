@@ -68,6 +68,12 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
     private string _xpathScalar = string.Empty;
 
     /// <summary>
+    /// Transient notification segment ("last-action"). Surface silent rejects, paste
+    /// confirmations, Copy XPath acks, etc. Auto-clears after 4 seconds.
+    /// </summary>
+    private readonly Status.LastActionStatus _lastAction = new(TimeSpan.FromSeconds(4));
+
+    /// <summary>
     /// Clipboard service, initialized once the window's TopLevel is available (on Opened).
     /// Null before the window is shown; clipboard handlers no-op when null.
     /// </summary>
@@ -102,12 +108,16 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
         _findBar.ReplaceCurrentRequested += rep => _findController.OnReplaceCurrent(rep);
         _findBar.ReplaceAllRequested += rep => _findController.OnReplaceAll(rep);
 
+        // Transient status segment fires Changed on notify + auto-clear.
+        _lastAction.Changed += UpdateStatusBar;
+
         // XPath query bar — separate highlight mode, mutually exclusive with FindBar so
         // the two tint sources don't clash. See ShowXPathBar / ShowFindBar for the mutex.
         _xpathController = new XPathQueryController(this, _matchIndex);
         _xpathBar.QuerySubmitted += async xp => await _xpathController.OnQuerySubmittedAsync(xp);
         _xpathBar.PreviousRequested += _xpathController.OnPrevious;
         _xpathBar.CloseRequested += _xpathController.OnClose;
+        _xpathBar.HistoryRequested += () => _xpathController.SnapshotHistory();
 
         // Wire F2 inline rename — routes to element or attribute command based on node kind.
         _nodeList.NodeRenameRequested += (node, newLabel) =>
@@ -257,10 +267,11 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
             {
                 doc.Undo.Execute(new MoveSubtreeCommand(doc, srcElement.Id, targetParentId, insertIndex));
             }
-            catch (InvalidOperationException)
+            catch (InvalidOperationException ex)
             {
-                // Cycle prevention or other invariant violation — silent reject (the cursor's
-                // drag-effect indicator already conveyed "not allowed" to the user).
+                // Cycle prevention or other invariant violation. The cursor's drag-effect
+                // indicator already conveyed "not allowed"; surface the specific reason too.
+                NotifyAction($"Move rejected: {ex.Message}");
             }
         };
 
@@ -275,6 +286,18 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
                 doc.Undo.Execute(new DeleteNodeCommand(doc, xmlNode.XdmNode.Id));
             }
             catch (InvalidOperationException) { /* root delete attempt — ignore */ }
+        };
+
+        _nodeList.NodeCopyXPathRequested += async node =>
+        {
+            if (_clipboard is null) return;
+            if (_state.ActiveDocument is not XmlDocument doc) return;
+            if (node is not XmlTreeNode xmlNode) return;
+
+            var xpath = XPathBuilder.Build(doc, xmlNode.XdmNode.Id);
+            if (string.IsNullOrEmpty(xpath)) return;
+            await _clipboard.WriteTextAsync(xpath);
+            NotifyAction($"Copied XPath: {xpath}");
         };
 
         _rootPanel = new DockPanel { LastChildFill = true };
@@ -594,7 +617,102 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
                 Order: 2));
         }
 
+        if (_lastAction.Message is { } actionMsg)
+        {
+            segments.Add(new StatusBarSegment(
+                Id: "last-action",
+                Label: actionMsg,
+                Order: 3));
+        }
+
         _window.SetStatusSegments(segments, EmptyServiceProvider.Instance);
+    }
+
+    /// <summary>Surfaces a transient message in the status bar's last-action segment.</summary>
+    internal void NotifyAction(string message) => _lastAction.Notify(message);
+
+    /// <summary>
+    /// Prompts the user to pick a second XML file, parses it, computes the structural diff
+    /// against the active document, and displays the result in a modal report window.
+    /// Dual-pane side-by-side view deferred to Plan 24.
+    /// </summary>
+    internal async Task CompareWithFileAsync()
+    {
+        if (_state.ActiveDocument is not XmlDocument left)
+        {
+            NotifyAction("Compare: no active document");
+            return;
+        }
+
+        var topLevel = TopLevel.GetTopLevel(_window);
+        if (topLevel is null) return;
+
+        var files = await topLevel.StorageProvider.OpenFilePickerAsync(
+            new Avalonia.Platform.Storage.FilePickerOpenOptions
+            {
+                Title = "Compare with…",
+                AllowMultiple = false,
+            });
+        if (files.Count == 0) return;
+
+        XmlDocument right;
+        try
+        {
+            right = await XmlDocument.LoadAsync(files[0].Path.LocalPath, CancellationToken.None);
+        }
+        catch (System.Xml.XmlException ex)
+        {
+            NotifyAction($"Compare failed: {ex.Message}");
+            return;
+        }
+        catch (System.IO.IOException ex)
+        {
+            NotifyAction($"Compare failed: {ex.Message}");
+            return;
+        }
+
+        var diff = Phoenixml.Platform.Editor.Xml.Diff.XmlDocumentDiff.Compute(left, right);
+        ShowDiffReport(left.DisplayName, right.DisplayName, diff);
+    }
+
+    private void ShowDiffReport(string leftName, string rightName, Phoenixml.Platform.Editor.Xml.Diff.XmlDiffResult diff)
+    {
+        var report = new System.Text.StringBuilder();
+        report.Append("Compare: ").Append(leftName).Append(" ↔ ").AppendLine(rightName);
+        report.Append(diff.Changes.Count).AppendLine(" difference(s).");
+        report.AppendLine();
+        foreach (var c in diff.Changes)
+        {
+            var verb = c.Kind switch
+            {
+                Phoenixml.Platform.Editor.Xml.Diff.DiffKind.Added => "+",
+                Phoenixml.Platform.Editor.Xml.Diff.DiffKind.Removed => "−",
+                Phoenixml.Platform.Editor.Xml.Diff.DiffKind.Changed => "~",
+                _ => "?",
+            };
+            if (c.Kind == Phoenixml.Platform.Editor.Xml.Diff.DiffKind.Changed)
+                report.Append(verb).Append(' ').Append(c.XPath).Append(" : ").Append(c.LeftValue).Append(" → ").AppendLine(c.RightValue);
+            else
+                report.Append(verb).Append(' ').AppendLine(c.XPath);
+        }
+
+        var window = new Window
+        {
+            Title = $"Compare result — {leftName} ↔ {rightName}",
+            Width = 700,
+            Height = 500,
+            Content = new ScrollViewer
+            {
+                Content = new TextBlock
+                {
+                    Text = report.ToString(),
+                    FontFamily = new Avalonia.Media.FontFamily("Cascadia Mono, Consolas, monospace"),
+                    Margin = new Avalonia.Thickness(8),
+                    TextWrapping = Avalonia.Media.TextWrapping.NoWrap,
+                },
+            },
+        };
+        window.Show(_window);
     }
 
     private readonly DockPanel _rootPanel;
@@ -901,10 +1019,24 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
         if (_clipboard is null) return;
         if (_state.ActiveDocument is not XmlDocument doc) return;
         if (_nodeList.SelectedNode is not XmlTreeNode xmlNode) return;
-        if (xmlNode.XdmNode is not XdmElement el) return;
 
-        var xml = SubtreeSerializer.Serialize(doc, el.Id);
-        await _clipboard.WriteXmlAsync(xml);
+        switch (xmlNode.XdmNode)
+        {
+            case XdmElement el:
+                {
+                    var xml = SubtreeSerializer.Serialize(doc, el.Id);
+                    await _clipboard.WriteXmlAsync(xml);
+                    NotifyAction($"Copied element <{el.LocalName}>");
+                    return;
+                }
+            case XdmAttribute attr:
+                {
+                    var text = AttributeClipboardFormat.Serialize(attr.LocalName, attr.Value);
+                    await _clipboard.WriteTextAsync(text);
+                    NotifyAction($"Copied attribute @{attr.LocalName}");
+                    return;
+                }
+        }
     }
 
     /// <summary>
@@ -918,16 +1050,40 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
         if (_clipboard is null) return;
         if (_state.ActiveDocument is not XmlDocument doc) return;
         if (_nodeList.SelectedNode is not XmlTreeNode xmlNode) return;
-        if (xmlNode.XdmNode is not XdmElement el) return;
 
-        var xml = SubtreeSerializer.Serialize(doc, el.Id);
-        await _clipboard.WriteXmlAsync(xml);
-
-        try
+        switch (xmlNode.XdmNode)
         {
-            doc.Undo.Execute(new DeleteNodeCommand(doc, el.Id));
+            case XdmElement el:
+                {
+                    var xml = SubtreeSerializer.Serialize(doc, el.Id);
+                    await _clipboard.WriteXmlAsync(xml);
+                    try
+                    {
+                        doc.Undo.Execute(new DeleteNodeCommand(doc, el.Id));
+                        NotifyAction($"Cut element <{el.LocalName}>");
+                    }
+                    catch (InvalidOperationException ex)
+                    {
+                        NotifyAction($"Cut failed: {ex.Message}");
+                    }
+                    return;
+                }
+            case XdmAttribute attr:
+                {
+                    var text = AttributeClipboardFormat.Serialize(attr.LocalName, attr.Value);
+                    await _clipboard.WriteTextAsync(text);
+                    try
+                    {
+                        doc.Undo.Execute(new DeleteNodeCommand(doc, attr.Id));
+                        NotifyAction($"Cut attribute @{attr.LocalName}");
+                    }
+                    catch (InvalidOperationException ex)
+                    {
+                        NotifyAction($"Cut failed: {ex.Message}");
+                    }
+                    return;
+                }
         }
-        catch (InvalidOperationException) { /* document root delete attempt — ignore */ }
     }
 
     /// <summary>
@@ -940,19 +1096,52 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
         if (_clipboard is null) return;
         if (_state.ActiveDocument is not XmlDocument doc) return;
         if (_nodeList.SelectedNode is not XmlTreeNode xmlNode) return;
-        if (xmlNode.XdmNode is not XdmElement parent) return;
 
+        // Try attribute-format text first — pastes attribute onto the selected element.
+        var text = await _clipboard.ReadTextAsync();
+        if (!string.IsNullOrEmpty(text)
+            && AttributeClipboardFormat.TryParse(text, out var attrName, out var attrValue))
+        {
+            if (xmlNode.XdmNode is not XdmElement el)
+            {
+                NotifyAction("Paste attribute: select an element first");
+                return;
+            }
+            try
+            {
+                doc.Undo.Execute(new InsertAttributeCommand(doc, el.Id, attrName, attrValue));
+                NotifyAction($"Pasted attribute @{attrName}");
+            }
+            catch (InvalidOperationException ex)
+            {
+                NotifyAction($"Paste failed: {ex.Message}");
+            }
+            return;
+        }
+
+        // Fall back to XML subtree paste.
+        if (xmlNode.XdmNode is not XdmElement parent)
+        {
+            NotifyAction("Paste subtree: select an element first");
+            return;
+        }
         var xml = await _clipboard.ReadXmlAsync();
         if (string.IsNullOrEmpty(xml)) return;
 
         try
         {
-            var cmd = new InsertSubtreeCommand(doc, parent.Id, xml);
-            doc.Undo.Execute(cmd);
+            doc.Undo.Execute(new InsertSubtreeCommand(doc, parent.Id, xml));
             _nodeList.ExpandById(xmlNode.Id);
+            NotifyAction("Pasted subtree");
         }
-        catch (System.Xml.XmlException) { /* malformed clipboard XML — silent for v0.11 */ }
-        catch (InvalidOperationException) { /* parent not element / invariant failure */ }
+        catch (System.Xml.XmlException ex)
+        {
+            NotifyAction($"Paste failed: malformed XML ({ex.Message})");
+        }
+        catch (InvalidOperationException ex)
+        {
+            NotifyAction($"Paste failed: {ex.Message}");
+        }
     }
 
     // -------------------------------------------------------------------------

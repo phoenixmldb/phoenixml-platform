@@ -21,15 +21,37 @@ public sealed partial class BreadcrumbView : UserControl
 #pragma warning restore CA1003
 
     /// <summary>Replaces the segments. Last segment is rendered without a trailing chevron.</summary>
+    /// <remarks>
+    /// When the path exceeds <see cref="MaxVisibleSegments"/>, the middle is collapsed to a
+    /// non-navigating "…" placeholder. Head (<see cref="HeadKeep"/>) and tail (<see cref="TailKeep"/>)
+    /// segments remain clickable. The placeholder fires <c>SegmentClicked</c> but its
+    /// <see cref="BreadcrumbSegment.Payload"/> is <see langword="null"/>, so hosts that route
+    /// on payload (e.g. <c>EditorMainWindow</c>) silently ignore it.
+    /// </remarks>
     public void SetPath(IReadOnlyList<BreadcrumbSegment> segments)
     {
         ArgumentNullException.ThrowIfNull(segments);
-        var withFlags = segments
-            .Select((s, i) => new BreadcrumbSegmentRow(s, i < segments.Count - 1))
+        var visible = ElidedSegments(segments);
+        var withFlags = visible
+            .Select((s, i) => new BreadcrumbSegmentRow(s, i < visible.Count - 1))
             .ToList();
 
         var host = this.FindControl<ItemsControl>("SegmentsHost");
         if (host is not null) host.ItemsSource = withFlags;
+    }
+
+    private const int MaxVisibleSegments = 6;
+    private const int HeadKeep = 2;
+    private const int TailKeep = 3;
+
+    private static IReadOnlyList<BreadcrumbSegment> ElidedSegments(IReadOnlyList<BreadcrumbSegment> all)
+    {
+        if (all.Count <= MaxVisibleSegments) return all;
+        var elided = new List<BreadcrumbSegment>(HeadKeep + 1 + TailKeep);
+        for (int i = 0; i < HeadKeep; i++) elided.Add(all[i]);
+        elided.Add(new BreadcrumbSegment(Id: "__ellipsis__", Label: "…", Payload: null));
+        for (int i = all.Count - TailKeep; i < all.Count; i++) elided.Add(all[i]);
+        return elided;
     }
 
     private void Segment_Click(object? sender, RoutedEventArgs e)

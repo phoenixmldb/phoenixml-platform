@@ -24,6 +24,9 @@ internal interface IClipboardBackend
 
     /// <summary>Returns the plain-text content of the clipboard, or <see langword="null"/>.</summary>
     Task<string?> GetTextAsync();
+
+    /// <summary>Places plain text on the clipboard.</summary>
+    Task SetTextAsync(string text);
 }
 
 /// <summary>
@@ -49,6 +52,9 @@ internal sealed class AvaloniaClipboardBackend : IClipboardBackend
 
     /// <inheritdoc/>
     public Task<string?> GetTextAsync() => _inner.GetTextAsync();
+
+    /// <inheritdoc/>
+    public Task SetTextAsync(string text) => _inner.SetTextAsync(text);
 }
 
 /// <summary>
@@ -125,6 +131,20 @@ internal sealed class ClipboardService
             && !string.IsNullOrEmpty(xml))
             return xml;
 
+        var text = await _backend.GetTextAsync().ConfigureAwait(false);
+        return string.IsNullOrEmpty(text) ? null : text;
+    }
+
+    /// <summary>Writes plain text to the system clipboard.</summary>
+    public async Task WriteTextAsync(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        await _backend.SetTextAsync(text).ConfigureAwait(false);
+    }
+
+    /// <summary>Reads plain text from the system clipboard, or <see langword="null"/> when empty.</summary>
+    public async Task<string?> ReadTextAsync()
+    {
         var text = await _backend.GetTextAsync().ConfigureAwait(false);
         return string.IsNullOrEmpty(text) ? null : text;
     }

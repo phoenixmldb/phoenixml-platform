@@ -52,6 +52,13 @@ public sealed class ClipboardServiceTests
         /// <inheritdoc/>
         public Task<string?> GetTextAsync() => Task.FromResult(_plainText);
 
+        /// <inheritdoc/>
+        public Task SetTextAsync(string text)
+        {
+            _plainText = text;
+            return Task.CompletedTask;
+        }
+
         // -------------------------------------------------------------------------
         // Test-only inspection helpers
         // -------------------------------------------------------------------------

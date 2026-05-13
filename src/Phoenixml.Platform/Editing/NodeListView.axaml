@@ -30,6 +30,10 @@
                             <MenuItem Header="Delete"
                                       Click="Delete_Click"
                                       Tag="{Binding}" />
+                            <Separator />
+                            <MenuItem Header="Copy XPath"
+                                      Click="CopyXPath_Click"
+                                      Tag="{Binding}" />
                         </ContextMenu>
                     </Grid.ContextMenu>
                     <!-- Name column: diagnostic glyph + indent spacer + chevron toggle + label (TextBlock/TextBox) -->
