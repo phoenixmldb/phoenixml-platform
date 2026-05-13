@@ -1,6 +1,6 @@
 # Phoenixml.Editor v0.12 — Walkthrough & Rough-Edges Log
 
-**Status as of 2026-05-12:** v0.12 ships **Drag-and-drop reorder** of tree rows (Plan 19). Drag any element row onto another to move it; drop **on** the row inserts as last child, drop **above** or **below** inserts as a preceding or following sibling. NodeId identity is preserved across the move, so selection and external references survive. Single undo per drag gesture.
+**Status as of 2026-05-13:** v0.12 ships **Drag-and-drop reorder** of tree rows (Plan 19) and **Breadcrumb + status-bar XPath** for the current selection (Plan 20). Drag any element row onto another to move it; drop **on** the row inserts as last child, drop **above** or **below** inserts as a preceding or following sibling. NodeId identity is preserved across the move, so selection and external references survive. Single undo per drag gesture. Selecting any node now shows its canonical XPath in the status bar and renders a clickable ancestor breadcrumb above the tree.
 
 ## How to run
 
@@ -98,16 +98,65 @@ Load `/raid/tmp/v0.8-smoke/data-and-schemas-by-type/data/library.xml`. Test the 
 - [ ] **Recent Files entries with missing files are kept.**
 - [ ] **SubtreeSerializer is duplicated work vs XmlSerializer.**
 
-## What's next: Plan 20 candidates
+## Plan 20 — Breadcrumb + status-bar XPath (NEW)
+
+Read-only navigation feature; no document mutation.
+
+- **Status bar XPath segment** — selecting any tree row updates the right-most
+  status-bar segment with the node's canonical XPath (e.g.
+  `/library/book[2]/title` or `/library/book[1]/@isbn`). Empty when no
+  selection.
+- **Breadcrumb above the tree** — the existing `BreadcrumbView` between the
+  find bar and the node list now renders one clickable button per ancestor
+  step. The leading `/` segment represents the document root. Clicking any
+  segment navigates the tree via `EnsureVisibleAndSelect`, expanding
+  collapsed ancestors on the way.
+- **Predicate convention** — positional predicates (`book[2]`) are emitted
+  only when the element has at least one same-name sibling. Single
+  occurrences render without `[1]` for cleaner UI (matches XML Notepad).
+- **Non-element steps** — attributes show as `@name`; text/comment/PI
+  nodes show as `text()` / `comment()` / `processing-instruction('target')`.
+- **Tab-switch safety** — `OnActiveDocumentChanged` clears both the XPath
+  segment and the breadcrumb so stale selection state never bleeds across
+  documents.
+
+### Architecture pieces added in Plan 20
+
+- **`XPathBuilder`** in `Phoenixml.Platform.Editor.Xml.Navigation` —
+  static `Build(XmlDocument, NodeId) → string`. Walks up via
+  `XdmNode.Parent`, counts same-name siblings for positional predicates,
+  returns empty string for unresolved ids. Covered by 11 unit tests.
+- **`EditorMainWindow.OnNodeListSelectionChanged`** — single point of
+  truth that recomputes the XPath, rebuilds the breadcrumb's segment list
+  (each segment's `Payload` is the ancestor's `NodeId` string), and
+  triggers `UpdateStatusBar`.
+
+### Smoke-test checklist (manual)
+
+Load `/raid/tmp/v0.8-smoke/data-and-schemas-by-type/data/library.xml`. Test:
+
+| Action | Expected | Actual |
+|---|---|---|
+| Select root `<library>` | Status bar shows `/library`; breadcrumb has `/` › `library`. | tbd |
+| Select first `<book>` (one of many) | Status bar shows `/library/book[1]`; breadcrumb has `/` › `library` › `book[1]`. | tbd |
+| Select an `<isbn>` attribute on the second book | Status bar shows `/library/book[2]/@isbn`; breadcrumb terminates with `@isbn`. | tbd |
+| Select a text node inside `<title>` | Status bar shows `/.../title/text()`. | tbd |
+| Click a parent breadcrumb segment | Tree selection moves to that ancestor; collapsed ancestors expand. | tbd |
+| Click the leading `/` segment | Selection lands on the document root element. | tbd |
+| Switch tabs to a different document | Breadcrumb empties + XPath segment disappears, then repopulates for the new tab's first selection. | tbd |
+| Delete the selected node | Breadcrumb + XPath clear (no SelectionChanged → manual: tap a sibling row to verify rebuild). | tbd |
+
+## What's next: Plan 21 candidates
 
 In priority order:
 
-1. **Outline / breadcrumb on selection** — selected node's full XPath in status bar + clickable breadcrumb above the tree.
-2. **XPath query bar** — filter tree to matching node-set.
+1. **Editable XPath bar** — type an XPath, navigate or select-set the matches.
+2. **Right-click "Copy XPath" on tree rows** — clipboard convenience.
 3. **Failed-* reporting** — status-bar segment surfacing silent rejects (failed paste, cycle-rejected drop, malformed replace).
 4. **Compare two documents** — diff side-by-side using two NodeListView instances.
 5. **Cut/copy/paste of attributes.**
 6. **Auto-scroll during drag** + **drop preview ghost** — drag-drop polish.
+7. **Breadcrumb ellipsization** for deeply nested docs.
 
 LSP integration still waits on engine release cadence.
 
