@@ -17,6 +17,7 @@ using Phoenixml.Platform.Abstractions.Editing;
 using Phoenixml.Platform.Editor.Xml;
 using Phoenixml.Platform.Editor.Xml.Clipboard;
 using Phoenixml.Platform.Editor.Xml.Editing;
+using Phoenixml.Platform.Editor.Xml.Navigation;
 using Phoenixml.Platform.Editor.Xml.Tree;
 using Phoenixml.Platform.Editor.Xml.Validation;
 using Phoenixml.Platform.Editing;
@@ -48,7 +49,14 @@ public sealed class EditorMainWindow : IFindHost
     private readonly FindBar _findBar = new() { IsVisible = false };
     private readonly FindController _findController;
     private readonly SchemaCache _schemaCache = new();
+    private readonly BreadcrumbView _breadcrumb = new();
     private IDocument? _subscribedDocument;
+
+    /// <summary>
+    /// XPath of the currently selected node, surfaced by the status bar.
+    /// Empty when no document is active or no node is selected.
+    /// </summary>
+    private string _selectedXPath = string.Empty;
 
     /// <summary>
     /// Clipboard service, initialized once the window's TopLevel is available (on Opened).
@@ -299,12 +307,28 @@ public sealed class EditorMainWindow : IFindHost
         Grid.SetColumn(splitter, 1);
         innerGrid.Children.Add(splitter);
 
-        // Wrap the find bar + node list in a DockPanel so the bar can dock-top above the list.
-        // The DockPanel occupies Col 2; the find bar is initially hidden (IsVisible=false).
+        // Wrap the find bar + breadcrumb + node list in a DockPanel so each can dock-top
+        // above the list. Col 2; find bar starts hidden, breadcrumb starts empty.
         var rightColumn = new DockPanel { LastChildFill = true };
         DockPanel.SetDock(_findBar, Dock.Top);
+        DockPanel.SetDock(_breadcrumb, Dock.Top);
         rightColumn.Children.Add(_findBar);
+        rightColumn.Children.Add(_breadcrumb);
         rightColumn.Children.Add(_nodeList);
+
+        // Wire selection → status-bar XPath + breadcrumb path. Read-only navigation feature
+        // (Plan 20). XPath is recomputed every change; the breadcrumb is rebuilt from the
+        // selected node's ancestor chain (each segment carries the ancestor NodeId).
+        _nodeList.SelectionChanged += OnNodeListSelectionChanged;
+
+        // Clicking a breadcrumb segment navigates the tree to that ancestor. The payload
+        // stashed by OnNodeListSelectionChanged is the segment's NodeId string; we forward
+        // it to NodeListView.SelectById, which mirrors how diagnostics jump.
+        _breadcrumb.SegmentClicked += segment =>
+        {
+            if (segment.Payload is string nodeIdStr && !string.IsNullOrEmpty(nodeIdStr))
+                _nodeList.EnsureVisibleAndSelect(nodeIdStr);
+        };
         Grid.SetColumn(rightColumn, 2);
         innerGrid.Children.Add(rightColumn);
 
@@ -535,6 +559,14 @@ public sealed class EditorMainWindow : IFindHost
                 Order: 1));
         }
 
+        if (!string.IsNullOrEmpty(_selectedXPath))
+        {
+            segments.Add(new StatusBarSegment(
+                Id: "selected-xpath",
+                Label: _selectedXPath,
+                Order: 2));
+        }
+
         _window.SetStatusSegments(segments, EmptyServiceProvider.Instance);
     }
 
@@ -565,6 +597,11 @@ public sealed class EditorMainWindow : IFindHost
             _subscribedDocument.Changed -= OnSubscribedDocumentChanged;
         _subscribedDocument = doc;
 
+        // Reset selection-derived UI: empty the breadcrumb and drop the XPath segment so
+        // stale state from the previous document doesn't bleed into the new one.
+        _selectedXPath = string.Empty;
+        _breadcrumb.SetPath(Array.Empty<BreadcrumbSegment>());
+
         if (doc is null)
         {
             _nodeList.SetProvider(null);
@@ -592,6 +629,86 @@ public sealed class EditorMainWindow : IFindHost
         // Document.Changed). Only the status bar needs an explicit update here.
         UpdateStatusBar();
     }
+
+    /// <summary>
+    /// Selection-driven update for Plan 20's breadcrumb + status-bar XPath.
+    /// Recomputes the XPath and rebuilds the ancestor breadcrumb path on every selection
+    /// change. Read-only — never mutates the document.
+    /// </summary>
+    /// <remarks>
+    /// The breadcrumb's segments mirror the XPath steps in order. Each segment's
+    /// <see cref="BreadcrumbSegment.Payload"/> is the ancestor's NodeId as a string so
+    /// the click handler can call <c>NodeListView.EnsureVisibleAndSelect</c> directly.
+    /// </remarks>
+    private void OnNodeListSelectionChanged(Phoenixml.Platform.Abstractions.Editing.ITreeNode node)
+    {
+        if (_state.ActiveDocument is not XmlDocument doc)
+        {
+            _selectedXPath = string.Empty;
+            _breadcrumb.SetPath(Array.Empty<BreadcrumbSegment>());
+            UpdateStatusBar();
+            return;
+        }
+
+        if (node is not XmlTreeNode xmlNode)
+        {
+            _selectedXPath = string.Empty;
+            _breadcrumb.SetPath(Array.Empty<BreadcrumbSegment>());
+            UpdateStatusBar();
+            return;
+        }
+
+        _selectedXPath = XPathBuilder.Build(doc, xmlNode.XdmNode.Id);
+        _breadcrumb.SetPath(BuildBreadcrumbSegments(doc, xmlNode.XdmNode));
+        UpdateStatusBar();
+    }
+
+    /// <summary>
+    /// Builds the ordered breadcrumb segments for <paramref name="target"/> by walking up
+    /// via <see cref="XdmNode.Parent"/>. The first segment is always the document root
+    /// (<c>/</c>); subsequent segments mirror the XPath steps. Each segment's Payload is
+    /// the ancestor's NodeId as a string, ready for <c>NodeListView.SelectById</c>.
+    /// </summary>
+    private static List<BreadcrumbSegment> BuildBreadcrumbSegments(
+        XmlDocument doc, XdmNode target)
+    {
+        var chain = new List<XdmNode>();
+        XdmNode? cursor = target;
+        while (cursor is not null && cursor is not XdmDocument)
+        {
+            chain.Add(cursor);
+            cursor = cursor.Parent is { } p ? doc.Resolve(p) : null;
+        }
+        chain.Reverse();
+
+        var segments = new List<BreadcrumbSegment>
+        {
+            new(Id: doc.Root.Id.ToString(),
+                Label: "/",
+                Payload: doc.Root.DocumentElement?.ToString() ?? doc.Root.Id.ToString()),
+        };
+
+        foreach (var n in chain)
+        {
+            var label = SegmentLabel(n);
+            segments.Add(new BreadcrumbSegment(
+                Id: n.Id.ToString(),
+                Label: label,
+                Payload: n.Id.ToString()));
+        }
+
+        return segments;
+    }
+
+    private static string SegmentLabel(XdmNode node) => node switch
+    {
+        XdmElement el => el.LocalName,
+        XdmAttribute a => "@" + a.LocalName,
+        XdmText _ => "text()",
+        XdmComment _ => "comment()",
+        XdmProcessingInstruction pi => $"pi('{pi.Target}')",
+        _ => node.GetType().Name,
+    };
 
     // Predicate matching SetTextContentCommand's preconditions: the element has no element
     // children. Empty elements ARE editable since Plan 10 (SetTextContentCommand allocates a
