@@ -38,9 +38,28 @@ public sealed partial class NodeListView : UserControl
     private readonly List<NodeRowViewModel> _flatRows = new();
     private readonly Dictionary<string, bool> _expansionState = new();
     private ITreeNodeProvider? _provider;
+    // Row VM under the right-click pointer when the context menu is about to open.
+    // Avalonia ContextMenus live in a detached popup tree; DataContext + Tag bindings
+    // don't resolve at Opening time. We stash the row VM via PointerPressed hit-test
+    // and read it back in RowContextMenu_Opening. Consumed each Opening.
+    private NodeRowViewModel? _pendingRightClickRow;
 
     /// <summary>Initializes a new instance of <see cref="NodeListView"/>.</summary>
-    public NodeListView() => InitializeComponent();
+    public NodeListView()
+    {
+        InitializeComponent();
+        AddHandler(InputElement.PointerPressedEvent, OnAnyPointerPressed,
+            Avalonia.Interactivity.RoutingStrategies.Tunnel | Avalonia.Interactivity.RoutingStrategies.Bubble,
+            handledEventsToo: true);
+    }
+
+    private void OnAnyPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsRightButtonPressed) return;
+        if (e.Source is not Avalonia.Visual src) return;
+        var lbi = src.FindAncestorOfType<ListBoxItem>(includeSelf: true);
+        if (lbi?.DataContext is NodeRowViewModel rv) _pendingRightClickRow = rv;
+    }
 
     private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 
@@ -455,26 +474,20 @@ public sealed partial class NodeListView : UserControl
     {
         if (sender is not ContextMenu menu) return;
 
-        // Resolve the node from the first menu item's Tag binding (all items bind Tag to the row VM).
-        NodeRowViewModel? rowVm = null;
-        foreach (var item in menu.Items)
-        {
-            if (item is MenuItem mi && mi.Tag is NodeRowViewModel rv)
-            {
-                rowVm = rv;
-                break;
-            }
-        }
+        // Use the stashed row VM from the right-click PointerPressed hit-test.
+        // ContextMenu DataContext + Tag bindings don't settle until AFTER the popup opens,
+        // so we can't read them here; the PointerPressed handler ran before this and
+        // captured the target row's NodeRowViewModel.
+        var rowVm = _pendingRightClickRow;
+        _pendingRightClickRow = null;  // consume
         if (rowVm is null) return;
 
         var options = new InsertOptions();
         BuildingInsertOptions?.Invoke(rowVm.Node, options);
 
-        // Locate the Insert items by their position in the AXAML template (index 0 and 1).
-        // Earlier attempt to look them up by Header text failed silently because Avalonia
-        // can wrap MenuItem.Header in a Control (e.g., AccessText) for accessibility, so
-        // `mi.Header is string` returns false even when the AXAML set a literal string.
-        // Indices match the AXAML order: Insert Child Element, Insert Attribute, Separator, Delete.
+        // Index-based lookup matching AXAML order: [0]=InsertChild, [1]=InsertAttribute,
+        // [2]=Separator, [3]=Delete. (Header-text lookup is brittle since Avalonia may
+        // wrap headers in AccessText/etc.)
         var insertChildItem = menu.Items.Count > 0 ? menu.Items[0] as MenuItem : null;
         var insertAttrItem = menu.Items.Count > 1 ? menu.Items[1] as MenuItem : null;
 
