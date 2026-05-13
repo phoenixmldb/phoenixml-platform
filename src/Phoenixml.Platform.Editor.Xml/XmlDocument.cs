@@ -1,6 +1,8 @@
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.IO;
 using PhoenixmlDb.Core;
+using PhoenixmlDb.Xdm;
 using PhoenixmlDb.Xdm.Nodes;
 using PhoenixmlDb.Xdm.Parsing;
 using Phoenixml.Platform.Abstractions.Documents;
@@ -228,6 +230,186 @@ public sealed class XmlDocument : Document
             nodeResolver: id => _byId.TryGetValue(id, out var n) ? n : null,
             namespaceResolver: nsId => _namespaceById.TryGetValue(nsId, out var uri) ? uri : null);
         return serializer.Serialize(_root);
+    }
+
+    /// <summary>
+    /// Parses an XML string into a subtree and adopts it into this document by allocating
+    /// fresh <see cref="NodeId"/> values from this document's allocator and registering every
+    /// parsed node via <see cref="AddNode"/>. Returns the root <see cref="XdmElement"/> of
+    /// the subtree, ready to be spliced into any parent within this document.
+    /// </summary>
+    /// <param name="xml">Well-formed XML text whose document element becomes the subtree root.</param>
+    /// <returns>The subtree's root <see cref="XdmElement"/>.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="xml"/> is <see langword="null"/>.</exception>
+    /// <exception cref="System.Xml.XmlException"><paramref name="xml"/> is not well-formed XML.</exception>
+    /// <exception cref="InvalidOperationException">The XML has no document element.</exception>
+    internal XdmElement ParseSubtreeXml(string xml)
+    {
+        ArgumentNullException.ThrowIfNull(xml);
+
+        // 1. Parse with a temporary allocator (any start id is fine — we renumber below).
+        var (tempResult, tempNsById) = ParseXml(xml);
+
+        var tempDocElementId = tempResult.Document.DocumentElement
+            ?? throw new InvalidOperationException("The XML string has no document element.");
+
+        // 2. Merge the parsed namespace table into this document's table.
+        //    Build a mapping: parsed NamespaceId → this-doc NamespaceId.
+        //    Well-known IDs are reused directly; user namespaces get a new entry if they
+        //    aren't already in our table (looked up by URI).
+        var nsIdRemap = new Dictionary<NamespaceId, NamespaceId>();
+
+        // Seed well-known IDs — they map to themselves.
+        foreach (var wellKnown in new[]
+        {
+            NamespaceId.None, NamespaceId.Xml, NamespaceId.Xmlns,
+            NamespaceId.Xsd, NamespaceId.Xsi, NamespaceId.Fn,
+        })
+        {
+            nsIdRemap[wellKnown] = wellKnown;
+        }
+
+        // Build a reverse URI → NamespaceId map for our current table.
+        var ourUriToId = new Dictionary<string, NamespaceId>(StringComparer.Ordinal);
+        foreach (var kvp in _namespaceById)
+            ourUriToId[kvp.Value] = kvp.Key;
+
+        // Find the max existing NamespaceId so we can allocate above it.
+        uint nextNsId = NamespaceId.FirstUserNamespaceId;
+        foreach (var id in _namespaceById.Keys)
+            if (id.Value >= nextNsId) nextNsId = id.Value + 1;
+
+        foreach (var kvp in tempNsById)
+        {
+            if (nsIdRemap.ContainsKey(kvp.Key)) continue; // already mapped (well-known)
+
+            var uri = kvp.Value;
+            if (ourUriToId.TryGetValue(uri, out var existing))
+            {
+                nsIdRemap[kvp.Key] = existing;
+            }
+            else
+            {
+                var newId = new NamespaceId(nextNsId++);
+                _namespaceById[newId] = uri;
+                ourUriToId[uri] = newId;
+                nsIdRemap[kvp.Key] = newId;
+            }
+        }
+
+        // 3. Assign fresh NodeIds to every parsed node (except the temp XdmDocument wrapper).
+        //    Build a mapping: parsed NodeId → new NodeId.
+        var nodeIdRemap = new Dictionary<NodeId, NodeId>();
+        foreach (var node in tempResult.Nodes)
+        {
+            if (node is XdmDocument) continue; // drop the wrapper document node
+            nodeIdRemap[node.Id] = AllocateNodeId();
+        }
+
+        // Helper to remap a nullable parent pointer (skipping the temp document node).
+        NodeId? RemapParent(NodeId? oldParent)
+        {
+            if (oldParent is null) return null;
+            if (!nodeIdRemap.TryGetValue(oldParent.Value, out var remapped)) return null; // doc wrapper
+            return remapped;
+        }
+
+        // Helper to remap a list of NodeIds (children / attributes).
+        IReadOnlyList<NodeId> RemapIds(IReadOnlyList<NodeId> ids)
+        {
+            if (ids.Count == 0) return ImmutableArray<NodeId>.Empty;
+            var b = ImmutableArray.CreateBuilder<NodeId>(ids.Count);
+            foreach (var id in ids) b.Add(nodeIdRemap[id]);
+            return b.ToImmutable();
+        }
+
+        // Helper to remap namespace bindings on an element.
+        IReadOnlyList<NamespaceBinding> RemapBindings(IReadOnlyList<NamespaceBinding> bindings)
+        {
+            if (bindings.Count == 0) return ImmutableArray<NamespaceBinding>.Empty;
+            var b = ImmutableArray.CreateBuilder<NamespaceBinding>(bindings.Count);
+            foreach (var nb in bindings)
+                b.Add(new NamespaceBinding(nb.Prefix, nsIdRemap.TryGetValue(nb.Namespace, out var rns) ? rns : nb.Namespace));
+            return b.ToImmutable();
+        }
+
+        // Helper to remap a single NamespaceId.
+        NamespaceId RemapNs(NamespaceId ns)
+            => nsIdRemap.TryGetValue(ns, out var r) ? r : ns;
+
+        // 4. Rebuild each node with remapped IDs and add to this document's store.
+        XdmElement? subtreeRoot = null;
+
+        foreach (var node in tempResult.Nodes)
+        {
+            if (node is XdmDocument) continue;
+
+            var newId = nodeIdRemap[node.Id];
+            var newParent = RemapParent(node.Parent);
+
+            XdmNode rebuilt = node switch
+            {
+                XdmElement el => new XdmElement
+                {
+                    Id = newId,
+                    Document = _root.Document,
+                    Namespace = RemapNs(el.Namespace),
+                    Prefix = el.Prefix,
+                    LocalName = el.LocalName,
+                    Parent = newParent,
+                    Attributes = RemapIds(el.Attributes),
+                    Children = RemapIds(el.Children),
+                    NamespaceDeclarations = RemapBindings(el.NamespaceDeclarations),
+                    TypeAnnotation = el.TypeAnnotation,
+                    IsIdContent = el.IsIdContent,
+                },
+                XdmAttribute attr => new XdmAttribute
+                {
+                    Id = newId,
+                    Document = _root.Document,
+                    Namespace = RemapNs(attr.Namespace),
+                    Prefix = attr.Prefix,
+                    LocalName = attr.LocalName,
+                    Parent = newParent,
+                    Value = attr.Value,
+                    TypeAnnotation = attr.TypeAnnotation,
+                    IsId = attr.IsId,
+                    IsIdRef = attr.IsIdRef,
+                },
+                XdmText txt => new XdmText
+                {
+                    Id = newId,
+                    Document = _root.Document,
+                    Parent = newParent,
+                    Value = txt.Value,
+                },
+                XdmComment cmt => new XdmComment
+                {
+                    Id = newId,
+                    Document = _root.Document,
+                    Parent = newParent,
+                    Value = cmt.Value,
+                },
+                XdmProcessingInstruction pi => new XdmProcessingInstruction
+                {
+                    Id = newId,
+                    Document = _root.Document,
+                    Parent = newParent,
+                    Target = pi.Target,
+                    Value = pi.Value,
+                },
+                _ => throw new InvalidOperationException($"Unexpected node kind: {node.NodeKind}")
+            };
+
+            AddNode(rebuilt);
+
+            // The document element of the temp parse result is the subtree root.
+            if (node.Id == tempDocElementId)
+                subtreeRoot = (XdmElement)rebuilt;
+        }
+
+        return subtreeRoot
+            ?? throw new InvalidOperationException("Subtree root element was not found after re-numbering.");
     }
 
     /// <summary>
