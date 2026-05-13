@@ -57,6 +57,30 @@ public class InsertSubtreeCommandTests
     }
 
     [Fact]
+    public void InsertedSubtreeRootHasCorrectParentPointer()
+    {
+        // Regression for v0.11 smoke-test bug: a pasted subtree's root had Parent = null
+        // (from the parser's synthetic doc), so DeleteNodeCommand couldn't delete it
+        // because it walks Parent to find the parent element.
+        var (doc, libraryId) = BuildDoc();
+        var cmd = new InsertSubtreeCommand(doc, libraryId, "<note>hi</note>");
+        doc.Undo.Execute(cmd);
+
+        var libraryAfter = (XdmElement)doc.Resolve(libraryId)!;
+        var pastedId = libraryAfter.Children[^1];
+        var pastedRoot = doc.Resolve(pastedId) as XdmElement;
+        Assert.NotNull(pastedRoot);
+        Assert.Equal(libraryId, pastedRoot.Parent);
+
+        // The pasted subtree must be deletable via DeleteNodeCommand — which walks
+        // Parent to find its container. Pre-fix this threw InvalidOperationException
+        // because Parent was the parser's synthetic doc, not an XdmElement.
+        doc.Undo.Execute(new DeleteNodeCommand(doc, pastedId));
+        var libraryFinal = (XdmElement)doc.Resolve(libraryId)!;
+        Assert.DoesNotContain(pastedId, libraryFinal.Children);
+    }
+
+    [Fact]
     public void ApplyAppendsSubtreeAsLastChild()
     {
         var (doc, libraryId) = BuildDoc();

@@ -93,9 +93,19 @@ public sealed class InsertSubtreeCommand : PlatformEditorCommand
             var subtreeRoot = _document.ParseSubtreeXml(_xml);
             _insertedRootId = subtreeRoot.Id;
 
-            // Collect all NodeIds in the subtree for ReferencedNodeIds.
+            // The parsed root's Parent points at the parser's synthetic document — not at the
+            // target parent we're about to splice it into. Replace it with a clone whose Parent
+            // points to _parentId so subsequent operations that walk Parent pointers
+            // (DeleteNodeCommand, SchemaElementResolver, etc.) work correctly on the pasted
+            // subtree. The root's own NodeId stays stable; descendants don't need fixing
+            // because their Parent already points within the parsed subtree.
+            _document.ReplaceNode(_insertedRootId, WithParent(subtreeRoot, _parentId));
+
+            // Collect all NodeIds in the subtree for ReferencedNodeIds. Re-resolve the
+            // root so we pick up the parent-fixed version.
             _subtreeIds.Clear();
-            CollectSubtree(subtreeRoot, _subtreeIds);
+            if (_document.Resolve(_insertedRootId) is XdmNode rootForCollect)
+                CollectSubtree(rootForCollect, _subtreeIds);
         }
         // Subsequent Apply (redo): _insertedRootId is already set and the subtree is still
         // in _byId (Revert leaves orphans; Compact-on-Save won't evict while we're referenced).
@@ -156,6 +166,22 @@ public sealed class InsertSubtreeCommand : PlatformEditorCommand
             Parent = source.Parent,
             Attributes = source.Attributes,
             Children = newChildren,
+            NamespaceDeclarations = source.NamespaceDeclarations,
+            TypeAnnotation = source.TypeAnnotation,
+            IsIdContent = source.IsIdContent,
+        };
+
+    private static XdmElement WithParent(XdmElement source, NodeId newParent) =>
+        new()
+        {
+            Id = source.Id,
+            Document = source.Document,
+            Namespace = source.Namespace,
+            Prefix = source.Prefix,
+            LocalName = source.LocalName,
+            Parent = newParent,
+            Attributes = source.Attributes,
+            Children = source.Children,
             NamespaceDeclarations = source.NamespaceDeclarations,
             TypeAnnotation = source.TypeAnnotation,
             IsIdContent = source.IsIdContent,
