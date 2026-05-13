@@ -23,6 +23,7 @@ using Phoenixml.Platform.Editing;
 using Phoenixml.Platform;
 using Phoenixml.Platform.Shell;
 using PhoenixmlDb.Xdm.Nodes;
+using NodeId = PhoenixmlDb.Core.NodeId;
 
 namespace Phoenixml.Editor;
 
@@ -190,6 +191,53 @@ public sealed class EditorMainWindow : IFindHost
             var cmd = new InsertAttributeCommand(doc, el.Id, chosenName, string.Empty);
             doc.Undo.Execute(cmd);
             _nodeList.BeginValueEditById(cmd.InsertedId.ToString());
+        };
+
+        // Drag-and-drop reorder: build a MoveSubtreeCommand from the requested move.
+        // Silently ignore drops that would create a cycle or otherwise violate invariants
+        // (e.g. dragging the document root, which has no parent for the BeforeTarget /
+        // AfterTarget cases).
+        _nodeList.NodeReorderRequested += (source, target, pos) =>
+        {
+            if (_state.ActiveDocument is not XmlDocument doc) return;
+            if (source is not XmlTreeNode srcNode || target is not XmlTreeNode tgtNode) return;
+            if (srcNode.XdmNode is not XdmElement srcElement) return;
+            if (tgtNode.XdmNode is not XdmElement tgtElement) return;
+
+            NodeId targetParentId;
+            int insertIndex;
+            switch (pos)
+            {
+                case DropPosition.AsLastChild:
+                    targetParentId = tgtElement.Id;
+                    insertIndex = tgtElement.Children.Count;
+                    break;
+                case DropPosition.BeforeTarget:
+                case DropPosition.AfterTarget:
+                    if (tgtElement.Parent is not { } tgtParent) return;
+                    if (doc.Resolve(tgtParent) is not XdmElement tgtParentEl) return;
+                    targetParentId = tgtParent;
+                    var idx = -1;
+                    for (int i = 0; i < tgtParentEl.Children.Count; i++)
+                    {
+                        if (tgtParentEl.Children[i] == tgtElement.Id) { idx = i; break; }
+                    }
+                    if (idx < 0) return;
+                    insertIndex = pos == DropPosition.BeforeTarget ? idx : idx + 1;
+                    break;
+                default:
+                    return;
+            }
+
+            try
+            {
+                doc.Undo.Execute(new MoveSubtreeCommand(doc, srcElement.Id, targetParentId, insertIndex));
+            }
+            catch (InvalidOperationException)
+            {
+                // Cycle prevention or other invariant violation — silent reject (the cursor's
+                // drag-effect indicator already conveyed "not allowed" to the user).
+            }
         };
 
         _nodeList.NodeDeleteRequested += node =>
