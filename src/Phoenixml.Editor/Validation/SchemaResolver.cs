@@ -153,16 +153,39 @@ internal sealed class SchemaResolver
 
             if (attr.LocalName == "schemaLocation")
             {
-                // Value is "namespace location [namespace location ...]" pairs.
-                // Take the first pair's location (index 1).
-                var parts = attr.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length >= 2)
+                // Value is one or more (namespace, location) pairs, whitespace-separated.
+                // Plan 25: load each pair into a single combined XmlSchemaSet so
+                // multi-namespace documents validate against all referenced XSDs.
+                var parts = attr.Value.Split(
+                    [' ', '\t', '\n', '\r'],
+                    StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length < 2 || parts.Length % 2 != 0) return null;
+
+                var docDir = Path.GetDirectoryName(document.Source?.LocalPath);
+                var combined = new XmlSchemaSet();
+                string? firstResolvedPath = null;
+                try
                 {
-                    var set = TryLoad(parts[1], document, out var resolvedPath);
-                    if (set is not null && resolvedPath is not null)
-                        return new SchemaResolution(set, resolvedPath, SchemaResolutionKind.XsiHint);
-                    return null;
+                    for (int i = 0; i + 1 < parts.Length; i += 2)
+                    {
+                        var ns = parts[i];
+                        var loc = parts[i + 1];
+                        var full = Path.IsPathRooted(loc) || docDir is null
+                            ? loc
+                            : Path.Combine(docDir, loc);
+                        if (!File.Exists(full)) return null;
+                        var resolved = Path.GetFullPath(full);
+                        combined.Add(ns, resolved);
+                        firstResolvedPath ??= resolved;
+                    }
+                    combined.Compile();
                 }
+                catch (System.Xml.Schema.XmlSchemaException) { return null; }
+                catch (IOException) { return null; }
+
+                return firstResolvedPath is null
+                    ? null
+                    : new SchemaResolution(combined, firstResolvedPath, SchemaResolutionKind.XsiHint);
             }
         }
 

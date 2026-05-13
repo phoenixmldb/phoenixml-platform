@@ -69,6 +69,13 @@ public interface ITreeNode
     /// providers don't need to be updated until they participate in compare.
     /// </summary>
     DiffHighlight DiffHighlight => DiffHighlight.None;
+
+    /// <summary>
+    /// Optional documentation string (e.g. from <c>xs:annotation/xs:documentation</c> when
+    /// the document is bound to a schema). Used by the host to render a tooltip on the row.
+    /// Default implementation returns <see langword="null"/>.
+    /// </summary>
+    string? Documentation => null;
 }
 
 /// <summary>

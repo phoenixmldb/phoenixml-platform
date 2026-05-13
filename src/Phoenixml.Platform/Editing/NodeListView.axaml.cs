@@ -946,6 +946,12 @@ public sealed class NodeRowViewModel : INotifyPropertyChanged
     public DiffHighlight DiffHighlight => Node.DiffHighlight;
 
     /// <summary>
+    /// Documentation forwarded from <see cref="Node"/>. Bound as the row tooltip;
+    /// Avalonia auto-hides the tooltip when the value is null/empty.
+    /// </summary>
+    public string? Documentation => Node.Documentation;
+
+    /// <summary>
     /// Brush for the row's background tint. Diff tint (Plan 24) takes precedence over
     /// find-match tint (Plan 15) when both are active — the compare view doesn't host
     /// the find bar anyway, so the two never normally coexist.

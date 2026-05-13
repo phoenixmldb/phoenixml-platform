@@ -119,16 +119,35 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
         _xpathBar.CloseRequested += _xpathController.OnClose;
         _xpathBar.HistoryRequested += () => _xpathController.SnapshotHistory();
 
-        // Context-aware completions: harvest element / attribute names from the active doc.
+        // Context-aware completions: prefer schema-derived names when a schema is bound;
+        // fall back to document-harvested names. Plan 25 #1.
         _xpathBar.NamesRequested += (kind, prefix) =>
         {
             if (_state.ActiveDocument is not XmlDocument doc) return Array.Empty<string>();
-            var all = kind switch
+
+            IReadOnlyList<string> all;
+            var schemas = new SchemaResolver(Settings, _schemaCache).Resolve(doc);
+            if (schemas is not null)
             {
-                Find.XPathContextKind.ElementName => Find.XPathContextProvider.CollectElementNames(doc),
-                Find.XPathContextKind.AttributeName => Find.XPathContextProvider.CollectAttributeNames(doc),
-                _ => (IReadOnlyList<string>)Array.Empty<string>(),
-            };
+                all = kind switch
+                {
+                    Find.XPathContextKind.ElementName =>
+                        Phoenixml.Platform.Editor.Xml.Validation.SchemaElementNameHarvester.AllReachableElementNames(schemas),
+                    Find.XPathContextKind.AttributeName =>
+                        Phoenixml.Platform.Editor.Xml.Validation.SchemaElementNameHarvester.AllAttributeNames(schemas),
+                    _ => Array.Empty<string>(),
+                };
+            }
+            else
+            {
+                all = kind switch
+                {
+                    Find.XPathContextKind.ElementName => Find.XPathContextProvider.CollectElementNames(doc),
+                    Find.XPathContextKind.AttributeName => Find.XPathContextProvider.CollectAttributeNames(doc),
+                    _ => Array.Empty<string>(),
+                };
+            }
+
             if (prefix.Length == 0) return all;
             var filtered = new List<string>();
             foreach (var n in all)
@@ -229,15 +248,27 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
             if (xmlNode.XdmNode is not XdmElement el) return;
 
             _nodeList.ExpandById(xmlNode.Id);
-            var cmd = new InsertElementCommand(doc, el.Id, chosenName);
-            doc.Undo.Execute(cmd);
+            var insertCmd = new InsertElementCommand(doc, el.Id, chosenName);
+            doc.Undo.Execute(insertCmd);
 
-            var insertedIdStr = cmd.InsertedId.ToString();
+            var insertedIdStr = insertCmd.InsertedId.ToString();
             var schemas = new SchemaResolver(Settings, _schemaCache).Resolve(doc);
-            if (schemas is not null && IsSimpleTypedElement(doc, cmd.InsertedId, schemas))
+            if (schemas is not null && IsSimpleTypedElement(doc, insertCmd.InsertedId, schemas))
+            {
+                // Plan 25 #5: seed a type-appropriate default into the new element so the
+                // user sees `0` / `false` / today / first-enum-value instead of an empty cell.
+                var schemaEl = Phoenixml.Platform.Editor.Xml.Validation.SchemaElementResolver.Resolve(doc, insertCmd.InsertedId, schemas);
+                var defaultText = Phoenixml.Platform.Editor.Xml.Validation.SchemaDefaultValueResolver.GetDefault(schemaEl?.ElementSchemaType);
+                if (!string.IsNullOrEmpty(defaultText))
+                {
+                    doc.Undo.Execute(new SetTextContentCommand(doc, insertCmd.InsertedId, defaultText));
+                }
                 _nodeList.BeginValueEditById(insertedIdStr);
+            }
             else
+            {
                 _nodeList.SelectById(insertedIdStr);
+            }
         };
 
         // Schema-aware Insert Attribute handler — attributes always auto-value-edit.
@@ -248,7 +279,19 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
             if (xmlNode.XdmNode is not XdmElement el) return;
 
             _nodeList.ExpandById(xmlNode.Id);
-            var cmd = new InsertAttributeCommand(doc, el.Id, chosenName, string.Empty);
+
+            // Plan 25 #5: seed default attribute value from schema type when known.
+            var defaultText = string.Empty;
+            var schemas = new SchemaResolver(Settings, _schemaCache).Resolve(doc);
+            if (schemas is not null
+                && Phoenixml.Platform.Editor.Xml.Validation.SchemaElementResolver.Resolve(doc, el.Id, schemas) is XmlSchemaElement schemaParent
+                && schemaParent.ElementSchemaType is XmlSchemaComplexType ct
+                && ct.AttributeUses[new System.Xml.XmlQualifiedName(chosenName)] is XmlSchemaAttribute schemaAttr)
+            {
+                defaultText = Phoenixml.Platform.Editor.Xml.Validation.SchemaDefaultValueResolver.GetDefault(schemaAttr.AttributeSchemaType);
+            }
+
+            var cmd = new InsertAttributeCommand(doc, el.Id, chosenName, defaultText);
             doc.Undo.Execute(cmd);
             _nodeList.BeginValueEditById(cmd.InsertedId.ToString());
         };
@@ -355,6 +398,37 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
             if (doc.Source is not Uri source) return;
             Settings.SetPerDocumentSchema(source.LocalPath, xsdPath);
             _validation.Revalidate();
+        };
+        // Plan 25 #4: right-click XML → pick XSD via file picker → bind it.
+        Explorer.ApplySchemaToXmlRequested += async xmlPath =>
+        {
+            var topLevel = TopLevel.GetTopLevel(_window);
+            if (topLevel is null) return;
+            var files = await topLevel.StorageProvider.OpenFilePickerAsync(
+                new Avalonia.Platform.Storage.FilePickerOpenOptions
+                {
+                    Title = "Apply Schema to " + System.IO.Path.GetFileName(xmlPath),
+                    AllowMultiple = false,
+                    FileTypeFilter =
+                    [
+                        new Avalonia.Platform.Storage.FilePickerFileType("XML Schema")
+                        {
+                            Patterns = ["*.xsd"],
+                        },
+                    ],
+                });
+            if (files.Count == 0) return;
+            var xsd = files[0].Path.LocalPath;
+            Settings.SetPerDocumentSchema(xmlPath, xsd);
+            NotifyAction($"Schema applied to {System.IO.Path.GetFileName(xmlPath)}");
+            // If the XML file is currently open, re-resolve schema + re-validate.
+            if (_state.Tabs.FirstOrDefault(t =>
+                string.Equals(t.Document.Source?.LocalPath, xmlPath, StringComparison.Ordinal))
+                is { Document: XmlDocument openDoc })
+            {
+                openDoc.TreeNodes.SchemaSet = new SchemaResolver(Settings, _schemaCache).Resolve(openDoc);
+                _validation.Revalidate();
+            }
         };
         Grid.SetColumn(Explorer, 0);
         innerGrid.Children.Add(Explorer);
@@ -761,6 +835,8 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
         doc.TreeNodes.DiagnosticIndex = _diagIndex;
         // Attach the match index so XmlTreeNode.MatchHighlight reflects find results.
         doc.TreeNodes.MatchIndex = _matchIndex;
+        // Plan 25 #3: bind the schema set so row tooltips can pull xs:annotation text.
+        doc.TreeNodes.SchemaSet = new SchemaResolver(Settings, _schemaCache).Resolve(doc);
         _nodeList.SetProvider(doc.TreeNodes);
 
         _window.SetTitle($"Phoenixml Editor — {doc.DisplayName}");

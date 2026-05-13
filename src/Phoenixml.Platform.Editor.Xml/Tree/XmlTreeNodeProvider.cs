@@ -68,6 +68,13 @@ public sealed class XmlTreeNodeProvider : ITreeNodeProvider
     public Diff.DiffIndex? DiffIndex { get; set; }
 
     /// <summary>
+    /// Optional compiled <see cref="System.Xml.Schema.XmlSchemaSet"/> used to resolve
+    /// <c>xs:annotation/xs:documentation</c> for each tree row. Set by
+    /// <c>EditorValidationService</c> when a schema is resolved for the active document.
+    /// </summary>
+    public System.Xml.Schema.XmlSchemaSet? SchemaSet { get; set; }
+
+    /// <summary>
     /// Manually fires the <see cref="Changed"/> event, causing any bound view (e.g.
     /// <c>NodeListView</c>) to rebuild its rows. Call this after updating
     /// <see cref="DiagnosticIndex"/> so IconKey changes propagate to the UI.

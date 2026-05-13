@@ -192,6 +192,27 @@ public sealed class XmlTreeNode : ITreeNode
         }
     }
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Resolves <c>xs:annotation/xs:documentation</c> for the underlying schema declaration
+    /// when the owning provider has a <see cref="XmlTreeNodeProvider.SchemaSet"/> bound.
+    /// Returns <see langword="null"/> for nodes with no schema match or no annotation.
+    /// </remarks>
+    public string? Documentation
+    {
+        get
+        {
+            if (_provider?.SchemaSet is not System.Xml.Schema.XmlSchemaSet schemas) return null;
+            if (XdmNode is XdmElement)
+            {
+                var element = Validation.SchemaElementResolver.Resolve(_document, XdmNode.Id, schemas);
+                return Validation.SchemaAnnotationLookup.GetDocumentation(element);
+            }
+            // Attribute lookup is more involved (need parent element + schema). Skip for MVP.
+            return null;
+        }
+    }
+
     private static string Truncate(string s, int max) =>
         s.Length <= max ? s : s[..(max - 1)] + "…";
 }

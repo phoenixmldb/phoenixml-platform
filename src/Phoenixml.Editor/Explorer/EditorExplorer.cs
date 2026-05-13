@@ -29,6 +29,13 @@ internal sealed class EditorExplorer : DockPanel
     /// <c>SetPerDocumentSchema</c> + <c>Validation.Revalidate</c>.
     /// </summary>
     public event Action<string>? ApplySchemaRequested;
+
+    /// <summary>
+    /// Raised when the user right-clicks an XML file and picks "Apply Schema...".
+    /// Argument is the absolute path to the XML file. Host prompts for an XSD and
+    /// wires it via <c>SetPerDocumentSchema</c> (Plan 25 #4).
+    /// </summary>
+    public event Action<string>? ApplySchemaToXmlRequested;
 #pragma warning restore CA1003
     private readonly EditorMainWindow _window;
     private readonly TreeView _tree;
@@ -104,30 +111,49 @@ internal sealed class EditorExplorer : DockPanel
 
             if (args.Source is not Visual src) return;
             var tvi = src.FindAncestorOfType<TreeViewItem>(includeSelf: true);
-            if (tvi?.DataContext is not ExplorerNode node || !IsXsd(node.Path)) return;
-
-            var doc = _window.State.ActiveDocument;
-            var apply = new MenuItem
-            {
-                Header = doc is XmlDocument d
-                    ? $"Apply Schema to {d.DisplayName}"
-                    : "Apply Schema (no document open)",
-                IsEnabled = doc is not null,
-            };
-            var capturedPath = node.Path;
-            apply.Click += (_, _) => ApplySchemaRequested?.Invoke(capturedPath);
+            if (tvi?.DataContext is not ExplorerNode node) return;
 
             var menu = new ContextMenu
             {
                 Placement = PlacementMode.Pointer,
             };
-            menu.Items.Add(apply);
+
+            if (IsXsd(node.Path))
+            {
+                var doc = _window.State.ActiveDocument;
+                var apply = new MenuItem
+                {
+                    Header = doc is XmlDocument d
+                        ? $"Apply Schema to {d.DisplayName}"
+                        : "Apply Schema (no document open)",
+                    IsEnabled = doc is not null,
+                };
+                var capturedXsd = node.Path;
+                apply.Click += (_, _) => ApplySchemaRequested?.Invoke(capturedXsd);
+                menu.Items.Add(apply);
+            }
+            else if (IsXml(node.Path))
+            {
+                // Plan 25 #4: pick an XSD from the file system and bind it to this XML doc.
+                var apply = new MenuItem { Header = "Apply Schema..." };
+                var capturedXml = node.Path;
+                apply.Click += (_, _) => ApplySchemaToXmlRequested?.Invoke(capturedXml);
+                menu.Items.Add(apply);
+            }
+            else
+            {
+                return;
+            }
+
             menu.Open(tvi);
         };
     }
 
     private static bool IsXsd(string path) =>
         Path.GetExtension(path).Equals(".xsd", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsXml(string path) =>
+        Path.GetExtension(path).Equals(".xml", StringComparison.OrdinalIgnoreCase);
 
     private static StackPanel BuildRow(ExplorerNode node)
     {
