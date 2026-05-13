@@ -29,6 +29,13 @@ internal interface IXPathQueryHost
     /// <param name="total">Total match count.</param>
     /// <param name="error">Compile/runtime error, or <see langword="null"/> on success.</param>
     void SetXPathMatchCount(int active, int total, string? error);
+
+    /// <summary>
+    /// Sets the scalar XPath result for display in the status bar. <see langword="null"/>
+    /// clears it so the selected-node XPath segment becomes visible again.
+    /// </summary>
+    /// <param name="scalar">Formatted scalar string, or <see langword="null"/> to clear.</param>
+    void SetXPathScalar(string? scalar);
 }
 
 /// <summary>
@@ -102,6 +109,7 @@ internal sealed class XPathQueryController
         _activeIndex = -1;
         _lastQuery = string.Empty;
         _index.Reset([], null);
+        _host.SetXPathScalar(null);
         _host.ActiveProvider?.TriggerRefresh();
         _host.HideXPathBar();
     }
@@ -130,6 +138,7 @@ internal sealed class XPathQueryController
                 _activeIndex = -1;
                 UpdateIndex();
                 _host.SetXPathMatchCount(0, 0, error: null);
+                _host.SetXPathScalar(null);
                 return;
             }
 
@@ -140,6 +149,7 @@ internal sealed class XPathQueryController
                 _activeIndex = -1;
                 UpdateIndex();
                 _host.SetXPathMatchCount(0, 0, error: result.Error);
+                _host.SetXPathScalar(null);
                 return;
             }
 
@@ -150,6 +160,7 @@ internal sealed class XPathQueryController
             UpdateIndex();
             if (_activeIndex >= 0) ShowActiveInTree();
             _host.SetXPathMatchCount(_activeIndex < 0 ? 0 : _activeIndex + 1, _matches.Count, error: null);
+            _host.SetXPathScalar(result.Scalar);
         }
         finally
         {

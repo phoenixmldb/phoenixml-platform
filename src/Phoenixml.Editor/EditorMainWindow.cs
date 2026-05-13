@@ -61,6 +61,13 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
     private string _selectedXPath = string.Empty;
 
     /// <summary>
+    /// Scalar XPath result from the query bar, when the active XPath expression yielded
+    /// atomic values instead of nodes. Takes precedence over <see cref="_selectedXPath"/>
+    /// in the status bar while the XPath bar is open. Cleared when the bar closes.
+    /// </summary>
+    private string _xpathScalar = string.Empty;
+
+    /// <summary>
     /// Clipboard service, initialized once the window's TopLevel is available (on Opened).
     /// Null before the window is shown; clipboard handlers no-op when null.
     /// </summary>
@@ -575,11 +582,15 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
                 Order: 1));
         }
 
-        if (!string.IsNullOrEmpty(_selectedXPath))
+        // XPath bar's scalar result takes precedence over the selected-node XPath —
+        // both reuse the same segment slot. Falls back to selected-node XPath when the
+        // XPath bar is closed or returned nodes (not atomics).
+        var xpathLabel = !string.IsNullOrEmpty(_xpathScalar) ? _xpathScalar : _selectedXPath;
+        if (!string.IsNullOrEmpty(xpathLabel))
         {
             segments.Add(new StatusBarSegment(
                 Id: "selected-xpath",
-                Label: _selectedXPath,
+                Label: xpathLabel,
                 Order: 2));
         }
 
@@ -987,6 +998,13 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
     /// <inheritdoc/>
     void IXPathQueryHost.SetXPathMatchCount(int active, int total, string? error) =>
         _xpathBar.SetMatchCount(active, total, error);
+
+    /// <inheritdoc/>
+    void IXPathQueryHost.SetXPathScalar(string? scalar)
+    {
+        _xpathScalar = scalar ?? string.Empty;
+        UpdateStatusBar();
+    }
 }
 
 /// <summary>

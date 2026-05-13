@@ -136,15 +136,65 @@ public class XPathQueryServiceTests
     }
 
     [Fact]
-    public async Task EvaluateScalarResultProducesNoNodes()
+    public async Task EvaluateScalarResultPopulatesScalarField()
     {
-        // count() returns an atomic — for Plan 21 v0.12 we only highlight nodes.
-        // The service must not throw and must return an empty node list.
+        // count() returns an atomic — must populate Scalar, leave Nodes empty.
         var doc = ParseDoc(LibraryXml);
 
         var r = await Eval(doc, "count(//book)");
 
         Assert.Null(r.Error);
         Assert.Empty(r.Nodes);
+        Assert.Equal("2", r.Scalar);
+    }
+
+    [Fact]
+    public async Task EvaluateSequenceOfAtomicsRendersAsParenList()
+    {
+        var doc = ParseDoc(LibraryXml);
+
+        var r = await Eval(doc, "1 to 5");
+
+        Assert.Null(r.Error);
+        Assert.Empty(r.Nodes);
+        Assert.Equal("(1, 2, 3, 4, 5)", r.Scalar);
+    }
+
+    [Fact]
+    public async Task EvaluateNodeResultLeavesScalarNull()
+    {
+        var doc = ParseDoc(LibraryXml);
+
+        var r = await Eval(doc, "//book");
+
+        Assert.Null(r.Error);
+        Assert.Equal(2, r.Nodes.Count);
+        Assert.Null(r.Scalar);
+    }
+
+    [Fact]
+    public async Task EvaluateBooleanScalarRendersAsLowercase()
+    {
+        var doc = ParseDoc(LibraryXml);
+
+        var r = await Eval(doc, "1 = 1");
+
+        Assert.Null(r.Error);
+        Assert.Empty(r.Nodes);
+        Assert.Equal("true", r.Scalar);
+    }
+
+    [Fact]
+    public async Task EvaluateLongSequenceTruncates()
+    {
+        var doc = ParseDoc(LibraryXml);
+
+        var r = await Eval(doc, "1 to 100");
+
+        Assert.Null(r.Error);
+        Assert.Empty(r.Nodes);
+        Assert.NotNull(r.Scalar);
+        Assert.Contains("… +", r.Scalar, System.StringComparison.Ordinal);
+        Assert.True(r.Scalar.Length <= 100, $"scalar exceeded soft cap: {r.Scalar.Length} chars");
     }
 }

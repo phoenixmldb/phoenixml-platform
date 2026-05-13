@@ -1,6 +1,6 @@
 # Phoenixml.Editor v0.12 — Walkthrough & Rough-Edges Log
 
-**Status as of 2026-05-13:** v0.12 ships **Drag-and-drop reorder** of tree rows (Plan 19), **Breadcrumb + status-bar XPath** for the current selection (Plan 20), and an **XPath query bar** (Plan 21). Drag any element row onto another to move it; drop **on** the row inserts as last child, drop **above** or **below** inserts as a preceding or following sibling. NodeId identity is preserved across the move, so selection and external references survive. Single undo per drag gesture. Selecting any node now shows its canonical XPath in the status bar and renders a clickable ancestor breadcrumb above the tree. **Ctrl+G** opens an XPath query bar above the tree — type an expression (e.g. `//book[year='1978']`), press Enter to highlight matching nodes via the same tinted-row machinery as Find.
+**Status as of 2026-05-13:** v0.12 ships **Drag-and-drop reorder** of tree rows (Plan 19), **Breadcrumb + status-bar XPath** for the current selection (Plan 20), an **XPath query bar** (Plan 21), and **scalar XPath result display** (Plan 22). Drag any element row onto another to move it; drop **on** the row inserts as last child, drop **above** or **below** inserts as a preceding or following sibling. NodeId identity is preserved across the move, so selection and external references survive. Single undo per drag gesture. Selecting any node now shows its canonical XPath in the status bar and renders a clickable ancestor breadcrumb above the tree. **Ctrl+G** opens an XPath query bar above the tree — type an expression (e.g. `//book[year='1978']`), press Enter to highlight matching nodes via the same tinted-row machinery as Find. Expressions that return atomic values (e.g. `count(//book)`, `1 to 5`) render their serialized value in the status bar's XPath segment instead of tinting rows.
 
 ## How to run
 
@@ -67,6 +67,10 @@ Load `/raid/tmp/v0.8-smoke/data-and-schemas-by-type/data/library.xml`. Test the 
 ### Resolved 2026-05-13 (Plan 21)
 
 - [x] ~~**No XPath query bar.**~~ — Ctrl+G opens an XPath bar; expressions return a node-set that tints matching rows. Enter cycles to next, Shift+Enter previous, Escape closes. Compile/runtime errors render inline.
+
+### Resolved 2026-05-13 (Plan 22)
+
+- [x] ~~**Scalar XPath result display.**~~ — Expressions returning atomics (`count()`, `string-length()`, `1 to 5`, predicates that reduce to booleans, etc.) now render the serialized result in the status bar's XPath segment. Single atomic → bare value (`12`); multi → parenthesized comma list (`(1, 2, 3, 4, 5)`); long sequences truncate with `… +N more`. Boolean lowercase. Takes precedence over selected-node XPath while the bar is open; reverts on close.
 
 ### High friction (carried)
 
@@ -217,12 +221,56 @@ Load a multi-element XML doc (`library.xml`). Test:
 | Ctrl+G while Find bar open | XPath bar opens, Find bar closes, Find highlights clear. | tbd |
 | Edit a matched node (rename/value) | Match set re-evaluates (controller subscribes to `Document.Changed`). | tbd |
 
-## What's next: Plan 22 candidates
+## Plan 22 — XPath scalar result display
+
+Read-only query feature; extends Plan 21 to surface atomic results.
+
+- **Status-bar precedence** — while the XPath bar is open and the
+  expression evaluates to atomics, the status bar's right-most segment
+  shows the scalar instead of the selected-node XPath. Closing the bar
+  (Escape) clears the scalar and restores the selected-node XPath.
+- **Format conventions** — single value rendered bare (`12`, `true`,
+  `Hello World`); sequences as `(a, b, c, …)` parenthesized,
+  comma-separated, truncated at ~80 chars with `… +N more`. Boolean is
+  lowercase. Invariant culture so locale doesn't drift the display.
+- **Node-set still wins** — if the expression returns both nodes and
+  atomics (rare in practice), the nodes are tinted and the scalar is
+  suppressed. Atomics surface only when there are no nodes.
+
+### Architecture pieces added in Plan 22
+
+- **`XPathResult.Scalar`** in `Phoenixml.Platform.Editor.Xml.Find` —
+  third field on the existing result record; non-null only when the
+  expression yielded atomics and zero nodes.
+- **`XPathQueryService.FormatAtomics`** — internal helper that
+  stringifies a `IReadOnlyList<object?>` of boxed CLR primitives into
+  the display string. Uses `Convert.ToString(item, CultureInfo.InvariantCulture)`
+  with a `bool` → `"true"/"false"` shim.
+- **`IXPathQueryHost.SetXPathScalar(string?)`** — new host callback;
+  `EditorMainWindow` stores the value in `_xpathScalar` and calls
+  `UpdateStatusBar`. The status-bar render picks `_xpathScalar` over
+  `_selectedXPath` when non-empty.
+
+### Smoke-test checklist (manual)
+
+Load a multi-element XML doc. Test:
+
+| Action | Expected | Actual |
+|---|---|---|
+| Ctrl+G, type `count(//book)`, Enter | Status bar shows `2` (or the count); no row tints; counter shows `no matches`. | tbd |
+| Type `1 to 5`, Enter | Status bar shows `(1, 2, 3, 4, 5)`. | tbd |
+| Type `1 to 100`, Enter | Status bar shows truncated `(1, 2, 3, … +N more)`, length ≤ ~80 chars. | tbd |
+| Type `1 = 1`, Enter | Status bar shows `true`. | tbd |
+| Type `//book/title/string()`, Enter | Status bar shows `(The C Programming Language, Effective Java)` (or your titles). | tbd |
+| Switch to `//book`, Enter | Scalar clears, rows tint as before. | tbd |
+| Escape (close bar) | Scalar clears; status bar reverts to the selected-node XPath (if any). | tbd |
+| Select a tree row while scalar showing | Scalar still wins (bar is open). | tbd |
+
+## What's next: Plan 23 candidates
 
 In priority order:
 
-1. **Scalar XPath result display** — show `count(//book) → 12` in the status bar when the expression evaluates to an atomic.
-2. **Right-click "Copy XPath" on tree rows** — clipboard convenience.
+1. **Right-click "Copy XPath" on tree rows** — clipboard convenience.
 3. **Failed-* reporting** — status-bar segment surfacing silent rejects (failed paste, cycle-rejected drop, malformed replace).
 4. **Compare two documents** — diff side-by-side using two NodeListView instances.
 5. **Cut/copy/paste of attributes.**
