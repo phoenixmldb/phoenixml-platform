@@ -470,21 +470,13 @@ public sealed partial class NodeListView : UserControl
         var options = new InsertOptions();
         BuildingInsertOptions?.Invoke(rowVm.Node, options);
 
-        // Locate the named menu items. Name bindings in DataTemplate-generated menus are not
-        // registered in the logical tree the normal way; traverse Items directly.
-        MenuItem? insertChildItem = null;
-        MenuItem? insertAttrItem = null;
-        foreach (var item in menu.Items)
-        {
-            if (item is MenuItem mi)
-            {
-                if (mi.Header is string h)
-                {
-                    if (h == "Insert Child Element") insertChildItem = mi;
-                    else if (h == "Insert Attribute") insertAttrItem = mi;
-                }
-            }
-        }
+        // Locate the Insert items by their position in the AXAML template (index 0 and 1).
+        // Earlier attempt to look them up by Header text failed silently because Avalonia
+        // can wrap MenuItem.Header in a Control (e.g., AccessText) for accessibility, so
+        // `mi.Header is string` returns false even when the AXAML set a literal string.
+        // Indices match the AXAML order: Insert Child Element, Insert Attribute, Separator, Delete.
+        var insertChildItem = menu.Items.Count > 0 ? menu.Items[0] as MenuItem : null;
+        var insertAttrItem = menu.Items.Count > 1 ? menu.Items[1] as MenuItem : null;
 
         if (insertChildItem is not null)
             ConfigureInsertItem(insertChildItem, rowVm.Node, options.ChildElementNames,
