@@ -141,6 +141,15 @@ public sealed partial class NodeListView : UserControl
 
     private async System.Threading.Tasks.Task StartDragAsync(NodeRowViewModel dragRow, DataObject data, PointerEventArgs e)
     {
+        var ghostPopup = this.FindControl<Avalonia.Controls.Primitives.Popup>("DragGhostPopup");
+        var ghostText = this.FindControl<TextBlock>("DragGhostText");
+        if (ghostPopup is not null && ghostText is not null)
+        {
+            ghostText.Text = $"Move <{dragRow.Label}>";
+            ghostPopup.PlacementTarget = this;
+            ghostPopup.IsOpen = true;
+        }
+
         try
         {
             await DragDrop.DoDragDrop(e, data, DragDropEffects.Move).ConfigureAwait(true);
@@ -150,6 +159,7 @@ public sealed partial class NodeListView : UserControl
             dragRow.RowOpacity = 1.0;
             ClearDropIndicator();
             _dragInProgress = false;
+            if (ghostPopup is not null) ghostPopup.IsOpen = false;
         }
     }
 
@@ -932,12 +942,25 @@ public sealed class NodeRowViewModel : INotifyPropertyChanged
     /// <summary>Match-highlight state forwarded from <see cref="Node"/>.</summary>
     public MatchHighlight MatchHighlight => Node.MatchHighlight;
 
-    /// <summary>Brush for the row's background tint based on <see cref="MatchHighlight"/>.</summary>
-    public IBrush MatchHighlightBrush => MatchHighlight switch
+    /// <summary>Diff-highlight state forwarded from <see cref="Node"/>.</summary>
+    public DiffHighlight DiffHighlight => Node.DiffHighlight;
+
+    /// <summary>
+    /// Brush for the row's background tint. Diff tint (Plan 24) takes precedence over
+    /// find-match tint (Plan 15) when both are active — the compare view doesn't host
+    /// the find bar anyway, so the two never normally coexist.
+    /// </summary>
+    public IBrush MatchHighlightBrush => DiffHighlight switch
     {
-        MatchHighlight.ActiveMatch => new SolidColorBrush(Color.FromArgb(0xC0, 0x1E, 0x90, 0xFF)),  // dodger blue, slightly translucent
-        MatchHighlight.Match       => new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xE0, 0x66)),  // soft yellow, translucent
-        _                          => Brushes.Transparent,
+        DiffHighlight.Added => new SolidColorBrush(Color.FromArgb(0x60, 0x1F, 0xCF, 0x4A)),    // muted green
+        DiffHighlight.Removed => new SolidColorBrush(Color.FromArgb(0x60, 0xCF, 0x1F, 0x1F)),  // muted red
+        DiffHighlight.Changed => new SolidColorBrush(Color.FromArgb(0x60, 0xCF, 0xB0, 0x1F)),  // muted yellow
+        _ => MatchHighlight switch
+        {
+            MatchHighlight.ActiveMatch => new SolidColorBrush(Color.FromArgb(0xC0, 0x1E, 0x90, 0xFF)),
+            MatchHighlight.Match => new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xE0, 0x66)),
+            _ => Brushes.Transparent,
+        },
     };
 
     private bool _isEditing;

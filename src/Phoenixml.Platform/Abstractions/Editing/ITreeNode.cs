@@ -60,4 +60,32 @@ public interface ITreeNode
     /// this node is not a match.
     /// </summary>
     MatchHighlight MatchHighlight { get; }
+
+    /// <summary>
+    /// Diff-highlight state for this node, set by the host's compare machinery (Plan 24).
+    /// Returns <see cref="DiffHighlight.None"/> when no compare is active or this node
+    /// has no diff entry. Diff tint takes precedence over <see cref="MatchHighlight"/>.
+    /// Default implementation returns <see cref="DiffHighlight.None"/> so existing
+    /// providers don't need to be updated until they participate in compare.
+    /// </summary>
+    DiffHighlight DiffHighlight => DiffHighlight.None;
+}
+
+/// <summary>
+/// Diff-highlight state for a single tree row, set by the host's compare machinery.
+/// Mirrors <see cref="MatchHighlight"/> but for the dual-pane compare view (Plan 24).
+/// </summary>
+public enum DiffHighlight
+{
+    /// <summary>No compare is active, or this node has no diff entry.</summary>
+    None,
+
+    /// <summary>Node present only in the right (target) document.</summary>
+    Added,
+
+    /// <summary>Node present only in the left (source) document.</summary>
+    Removed,
+
+    /// <summary>Node value differs between left and right.</summary>
+    Changed,
 }

@@ -119,6 +119,32 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
         _xpathBar.CloseRequested += _xpathController.OnClose;
         _xpathBar.HistoryRequested += () => _xpathController.SnapshotHistory();
 
+        // Context-aware completions: harvest element / attribute names from the active doc.
+        _xpathBar.NamesRequested += (kind, prefix) =>
+        {
+            if (_state.ActiveDocument is not XmlDocument doc) return Array.Empty<string>();
+            var all = kind switch
+            {
+                Find.XPathContextKind.ElementName => Find.XPathContextProvider.CollectElementNames(doc),
+                Find.XPathContextKind.AttributeName => Find.XPathContextProvider.CollectAttributeNames(doc),
+                _ => (IReadOnlyList<string>)Array.Empty<string>(),
+            };
+            if (prefix.Length == 0) return all;
+            var filtered = new List<string>();
+            foreach (var n in all)
+                if (n.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    filtered.Add(n);
+            return filtered;
+        };
+
+        // Plan 24: persist XPath history across sessions. Load on startup; save on close.
+        try
+        {
+            _xpathController.LoadHistory(Find.XPathHistoryStore.Load(Find.XPathHistoryStore.DefaultPath));
+        }
+        catch (IOException) { /* permission / disk — silent */ }
+        catch (UnauthorizedAccessException) { /* silent */ }
+
         // Wire F2 inline rename — routes to element or attribute command based on node kind.
         _nodeList.NodeRenameRequested += (node, newLabel) =>
         {
@@ -559,6 +585,20 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
             }
         };
 
+        // Plan 24: persist XPath history on close. Runs alongside the dirty-docs prompt;
+        // both handlers fire on Closing.
+        _window.Closing += (_, _) =>
+        {
+            try
+            {
+                Find.XPathHistoryStore.Save(
+                    Find.XPathHistoryStore.DefaultPath,
+                    _xpathController.SnapshotHistory());
+            }
+            catch (IOException) { /* silent */ }
+            catch (UnauthorizedAccessException) { /* silent */ }
+        };
+
         _state.ActiveDocumentChanged += OnActiveDocumentChanged;
     }
 
@@ -671,47 +711,8 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
             return;
         }
 
-        var diff = Phoenixml.Platform.Editor.Xml.Diff.XmlDocumentDiff.Compute(left, right);
-        ShowDiffReport(left.DisplayName, right.DisplayName, diff);
-    }
-
-    private void ShowDiffReport(string leftName, string rightName, Phoenixml.Platform.Editor.Xml.Diff.XmlDiffResult diff)
-    {
-        var report = new System.Text.StringBuilder();
-        report.Append("Compare: ").Append(leftName).Append(" ↔ ").AppendLine(rightName);
-        report.Append(diff.Changes.Count).AppendLine(" difference(s).");
-        report.AppendLine();
-        foreach (var c in diff.Changes)
-        {
-            var verb = c.Kind switch
-            {
-                Phoenixml.Platform.Editor.Xml.Diff.DiffKind.Added => "+",
-                Phoenixml.Platform.Editor.Xml.Diff.DiffKind.Removed => "−",
-                Phoenixml.Platform.Editor.Xml.Diff.DiffKind.Changed => "~",
-                _ => "?",
-            };
-            if (c.Kind == Phoenixml.Platform.Editor.Xml.Diff.DiffKind.Changed)
-                report.Append(verb).Append(' ').Append(c.XPath).Append(" : ").Append(c.LeftValue).Append(" → ").AppendLine(c.RightValue);
-            else
-                report.Append(verb).Append(' ').AppendLine(c.XPath);
-        }
-
-        var window = new Window
-        {
-            Title = $"Compare result — {leftName} ↔ {rightName}",
-            Width = 700,
-            Height = 500,
-            Content = new ScrollViewer
-            {
-                Content = new TextBlock
-                {
-                    Text = report.ToString(),
-                    FontFamily = new Avalonia.Media.FontFamily("Cascadia Mono, Consolas, monospace"),
-                    Margin = new Avalonia.Thickness(8),
-                    TextWrapping = Avalonia.Media.TextWrapping.NoWrap,
-                },
-            },
-        };
+        var window = new Compare.CompareDocsWindow();
+        window.Load(left, right);
         window.Show(_window);
     }
 

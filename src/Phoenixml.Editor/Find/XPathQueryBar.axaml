@@ -23,6 +23,16 @@
                                  FontFamily="Cascadia Mono, Consolas, monospace" />
                     </Border>
                 </Popup>
+                <Popup Name="SignaturePopup"
+                       PlacementTarget="{Binding ElementName=QueryBox}"
+                       Placement="TopEdgeAlignedLeft"
+                       IsHitTestVisible="False">
+                    <Border Background="#252526" BorderBrush="#4A4A4F" BorderThickness="1" Padding="6,2">
+                        <TextBlock Name="SignatureText"
+                                   Foreground="#9CDCFE"
+                                   FontFamily="Cascadia Mono, Consolas, monospace" />
+                    </Border>
+                </Popup>
             </Panel>
             <TextBlock Name="CounterText" VerticalAlignment="Center"
                        Foreground="#9D9D9D"

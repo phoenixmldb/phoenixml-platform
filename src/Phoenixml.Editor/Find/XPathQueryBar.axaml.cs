@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
@@ -36,18 +38,44 @@ public sealed partial class XPathQueryBar : UserControl
 
         var popup = this.FindControl<Popup>("CompletionPopup")!;
         var completionList = this.FindControl<ListBox>("CompletionList")!;
+        var signaturePopup = this.FindControl<Popup>("SignaturePopup")!;
+        var signatureText = this.FindControl<TextBlock>("SignatureText")!;
 
-        // Open / refresh the popup as the user types. Trigger only when the caret sits
-        // inside a word run of XPath function name characters.
         queryBox.TextChanged += (_, _) =>
         {
-            var prefix = WordPrefixAtCaret(queryBox.Text, queryBox.CaretIndex);
-            if (prefix is null || prefix.Length == 0)
+            var fnName = FunctionNameBeforeOpenParen(queryBox.Text, queryBox.CaretIndex);
+            if (fnName is not null && XPathSignatures.Get(fnName) is string sig)
+            {
+                signatureText.Text = sig;
+                signaturePopup.IsOpen = true;
+            }
+            else
+            {
+                signaturePopup.IsOpen = false;
+            }
+        };
+
+        // Open / refresh the popup as the user types. The context provider classifies
+        // the caret (function name / element name / attribute name) so the completion
+        // source can switch between built-in fn:* names and host-harvested element /
+        // attribute names from the active document.
+        queryBox.TextChanged += (_, _) =>
+        {
+            var ctx = XPathContextProvider.DetectContext(queryBox.Text, queryBox.CaretIndex);
+            if (ctx.Kind == XPathContextKind.None)
             {
                 popup.IsOpen = false;
                 return;
             }
-            var matches = XPathFunctionList.Match(prefix);
+
+            IReadOnlyList<string> matches = ctx.Kind switch
+            {
+                XPathContextKind.FunctionName => XPathFunctionList.Match(ctx.Prefix),
+                XPathContextKind.ElementName or XPathContextKind.AttributeName =>
+                    NamesRequested?.Invoke(ctx.Kind, ctx.Prefix) ?? Array.Empty<string>(),
+                _ => Array.Empty<string>(),
+            };
+
             if (matches.Count == 0)
             {
                 popup.IsOpen = false;
@@ -162,6 +190,32 @@ public sealed partial class XPathQueryBar : UserControl
     private static bool IsWordChar(char c) =>
         char.IsLetterOrDigit(c) || c == '-' || c == '_';
 
+    /// <summary>
+    /// Finds the function name immediately before the nearest unmatched open paren to
+    /// the left of the caret. Returns null if none. Used to trigger the signature popup.
+    /// </summary>
+    private static string? FunctionNameBeforeOpenParen(string? text, int caret)
+    {
+        if (string.IsNullOrEmpty(text) || caret == 0) return null;
+        int depth = 0;
+        int parenIndex = -1;
+        for (int i = caret - 1; i >= 0; i--)
+        {
+            var c = text[i];
+            if (c == ')') depth++;
+            else if (c == '(')
+            {
+                if (depth == 0) { parenIndex = i; break; }
+                depth--;
+            }
+        }
+        if (parenIndex <= 0) return null;
+        int start = parenIndex;
+        while (start > 0 && IsWordChar(text[start - 1])) start--;
+        if (start == parenIndex) return null;
+        return text.Substring(start, parenIndex - start);
+    }
+
 #pragma warning disable CA1003 // Action<T> design is intentional per existing codebase conventions
     /// <summary>Raised on Enter inside the TextBox or click of the Next button.</summary>
     public event Action<string>? QuerySubmitted;
@@ -174,6 +228,13 @@ public sealed partial class XPathQueryBar : UserControl
     /// most-recent first. Called when Up/Down cycles through history.
     /// </summary>
     public event Func<IReadOnlyList<string>>? HistoryRequested;
+
+    /// <summary>
+    /// Requests element or attribute name completions from the host (typically harvested
+    /// from the active document). The host receives the context kind and the prefix the
+    /// user has typed, and returns a list of completion candidates.
+    /// </summary>
+    public event Func<XPathContextKind, string, IReadOnlyList<string>>? NamesRequested;
 
     /// <summary>Raised on Escape inside the TextBox or click of the Close button.</summary>
     public event Action? CloseRequested;

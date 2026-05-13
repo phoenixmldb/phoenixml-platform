@@ -61,6 +61,13 @@ public sealed class XmlTreeNodeProvider : ITreeNodeProvider
     public IMatchIndex? MatchIndex { get; set; }
 
     /// <summary>
+    /// Optional diff index. When set, <see cref="XmlTreeNode.DiffHighlight"/> returns the
+    /// diff status for each node so the dual-pane compare view (Plan 24) can tint rows by
+    /// added / removed / changed. Set by <c>CompareDocsWindow</c> before showing.
+    /// </summary>
+    public Diff.DiffIndex? DiffIndex { get; set; }
+
+    /// <summary>
     /// Manually fires the <see cref="Changed"/> event, causing any bound view (e.g.
     /// <c>NodeListView</c>) to rebuild its rows. Call this after updating
     /// <see cref="DiagnosticIndex"/> so IconKey changes propagate to the UI.

@@ -1,17 +1,17 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace Phoenixml.Editor.Find;
 
 /// <summary>
-/// MVP autocompletion source for the XPath query bar. Hand-curated list of common
-/// XPath 3.1 <c>fn:*</c> function names (local names only). Case-insensitive prefix match.
-/// v0.13 has no signature / parameter / namespace-aware filtering — those are Plan 24.
+/// Autocompletion source for the XPath query bar. Hand-curated lists of XPath 3.1
+/// function names grouped by namespace prefix. Case-insensitive prefix match.
+/// Routes by namespace prefix in the input: <c>map:</c>, <c>array:</c>, <c>xs:</c>
+/// select the corresponding bucket; unprefixed input filters <c>fn:</c> functions.
 /// </summary>
 public static class XPathFunctionList
 {
-    private static readonly string[] Names =
+    private static readonly string[] FnNames =
     [
         "abs", "boolean", "ceiling", "codepoints-to-string", "compare", "concat",
         "contains", "count", "current-date", "current-dateTime", "current-time",
@@ -30,13 +30,55 @@ public static class XPathFunctionList
         "year-from-dateTime", "zero-or-one",
     ];
 
-    /// <summary>Names whose local name starts with <paramref name="prefix"/> (case-insensitive). Empty prefix returns all.</summary>
+    private static readonly string[] MapNames =
+    [
+        "map:contains", "map:entry", "map:find", "map:for-each", "map:get",
+        "map:keys", "map:merge", "map:put", "map:remove", "map:size",
+    ];
+
+    private static readonly string[] ArrayNames =
+    [
+        "array:append", "array:filter", "array:flatten", "array:fold-left",
+        "array:fold-right", "array:for-each", "array:for-each-pair", "array:get",
+        "array:head", "array:insert-before", "array:join", "array:put",
+        "array:remove", "array:reverse", "array:size", "array:sort", "array:subarray",
+        "array:tail",
+    ];
+
+    private static readonly string[] XsNames =
+    [
+        "xs:anyAtomicType", "xs:anyURI", "xs:base64Binary", "xs:boolean", "xs:byte",
+        "xs:date", "xs:dateTime", "xs:dayTimeDuration", "xs:decimal", "xs:double",
+        "xs:duration", "xs:float", "xs:gDay", "xs:gMonth", "xs:gMonthDay", "xs:gYear",
+        "xs:gYearMonth", "xs:hexBinary", "xs:int", "xs:integer", "xs:language",
+        "xs:long", "xs:Name", "xs:NCName", "xs:negativeInteger", "xs:nonNegativeInteger",
+        "xs:nonPositiveInteger", "xs:normalizedString", "xs:positiveInteger",
+        "xs:QName", "xs:short", "xs:string", "xs:time", "xs:token", "xs:unsignedByte",
+        "xs:unsignedInt", "xs:unsignedLong", "xs:unsignedShort", "xs:yearMonthDuration",
+    ];
+
+    /// <summary>Returns names matching <paramref name="prefix"/>. Routes by namespace prefix.</summary>
     public static IReadOnlyList<string> Match(string prefix)
     {
         ArgumentNullException.ThrowIfNull(prefix);
-        if (prefix.Length == 0) return Names;
-        return Names
-            .Where(n => n.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            .ToArray();
+        if (prefix.StartsWith("map:", StringComparison.Ordinal))
+            return Filter(MapNames, prefix);
+        if (prefix.StartsWith("array:", StringComparison.Ordinal))
+            return Filter(ArrayNames, prefix);
+        if (prefix.StartsWith("xs:", StringComparison.Ordinal))
+            return Filter(XsNames, prefix);
+        return Filter(FnNames, prefix);
+    }
+
+    private static IReadOnlyList<string> Filter(string[] source, string prefix)
+    {
+        if (prefix.Length == 0) return source;
+        var list = new List<string>();
+        foreach (var n in source)
+        {
+            if (n.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                list.Add(n);
+        }
+        return list;
     }
 }

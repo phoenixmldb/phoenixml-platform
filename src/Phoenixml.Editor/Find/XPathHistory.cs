@@ -34,4 +34,20 @@ public sealed class XPathHistory
         while (_entries.Count > Capacity)
             _entries.RemoveAt(_entries.Count - 1);
     }
+
+    /// <summary>
+    /// Seeds the history from a list (most-recent first). Replaces existing entries.
+    /// Items beyond <see cref="Capacity"/> are dropped.
+    /// </summary>
+    public void LoadFrom(IReadOnlyList<string> entries)
+    {
+        ArgumentNullException.ThrowIfNull(entries);
+        _entries.Clear();
+        foreach (var entry in entries)
+        {
+            if (string.IsNullOrWhiteSpace(entry)) continue;
+            _entries.Add(entry);
+            if (_entries.Count >= Capacity) break;
+        }
+    }
 }

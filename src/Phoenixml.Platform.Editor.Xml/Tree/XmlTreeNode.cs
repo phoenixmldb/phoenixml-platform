@@ -171,6 +171,27 @@ public sealed class XmlTreeNode : ITreeNode
         }
     }
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Returns the diff kind for this node when the owning provider's
+    /// <see cref="XmlTreeNodeProvider.DiffIndex"/> is set; otherwise
+    /// <see cref="DiffHighlight.None"/>. Compare view sets the index before rendering.
+    /// </remarks>
+    public DiffHighlight DiffHighlight
+    {
+        get
+        {
+            if (_provider?.DiffIndex is not Diff.DiffIndex idx) return DiffHighlight.None;
+            return idx.GetKind(XdmNode.Id) switch
+            {
+                Diff.DiffKind.Added => DiffHighlight.Added,
+                Diff.DiffKind.Removed => DiffHighlight.Removed,
+                Diff.DiffKind.Changed => DiffHighlight.Changed,
+                _ => DiffHighlight.None,
+            };
+        }
+    }
+
     private static string Truncate(string s, int max) =>
         s.Length <= max ? s : s[..(max - 1)] + "…";
 }

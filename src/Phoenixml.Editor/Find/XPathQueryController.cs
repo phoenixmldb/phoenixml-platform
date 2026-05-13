@@ -86,6 +86,9 @@ internal sealed class XPathQueryController
     /// <summary>Snapshot of submitted XPath history, most-recent first.</summary>
     public IReadOnlyList<string> SnapshotHistory() => _history.Entries.ToArray();
 
+    /// <summary>Seeds the in-memory history (used by startup persistence load).</summary>
+    public void LoadHistory(IReadOnlyList<string> entries) => _history.LoadFrom(entries);
+
     /// <summary>Advances to the next match, wrapping around.</summary>
     public void OnNext()
     {

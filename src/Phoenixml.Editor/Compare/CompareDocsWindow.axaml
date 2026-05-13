@@ -1,0 +1,19 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:editing="clr-namespace:Phoenixml.Platform.Editing;assembly=Phoenixml.Platform"
+        x:Class="Phoenixml.Editor.Compare.CompareDocsWindow"
+        Width="1100" Height="700"
+        Title="Compare">
+    <DockPanel LastChildFill="True">
+        <Border DockPanel.Dock="Top" Background="#252526" Padding="8,4">
+            <TextBlock Name="HeaderText"
+                       Foreground="#CCCCCC"
+                       FontFamily="Cascadia Mono, Consolas, monospace" />
+        </Border>
+        <Grid ColumnDefinitions="*,1,*">
+            <editing:NodeListView Name="LeftPane" Grid.Column="0" />
+            <Border Grid.Column="1" Background="#4A4A4F" />
+            <editing:NodeListView Name="RightPane" Grid.Column="2" />
+        </Grid>
+    </DockPanel>
+</Window>

@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:Phoenixml.Platform.Editing"
              x:Class="Phoenixml.Platform.Editing.NodeListView">
+    <Panel>
     <ListBox Name="RowsHost"
              Background="{DynamicResource Phoenixml.Color.Surface.Base}"
              SelectionChanged="RowsHost_SelectionChanged"
@@ -102,4 +103,15 @@
             </DataTemplate>
         </ListBox.ItemTemplate>
     </ListBox>
+    <Popup Name="DragGhostPopup"
+           Placement="Pointer"
+           IsHitTestVisible="False">
+        <Border Background="#252526" BorderBrush="#1E90FF" BorderThickness="1"
+                Padding="6,2" CornerRadius="3">
+            <TextBlock Name="DragGhostText"
+                       Foreground="#CCCCCC"
+                       FontFamily="Cascadia Mono, Consolas, monospace" />
+        </Border>
+    </Popup>
+    </Panel>
 </UserControl>
