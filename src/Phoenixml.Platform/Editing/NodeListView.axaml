@@ -8,9 +8,13 @@
              KeyDown="RowsHost_KeyDown">
         <ListBox.ItemTemplate>
             <DataTemplate DataType="{x:Type local:NodeRowViewModel}">
-                <Border Background="{Binding MatchHighlightBrush}"
+                <Border Name="RowBorder"
+                        Background="{Binding MatchHighlightBrush}"
                         Padding="0"
-                        BorderThickness="0">
+                        BorderThickness="{Binding DropIndicatorThickness}"
+                        BorderBrush="#1E90FF"
+                        Opacity="{Binding RowOpacity}"
+                        DragDrop.AllowDrop="True">
                 <Grid ColumnDefinitions="360,1,*">
                     <Grid.ContextMenu>
                         <ContextMenu Opening="RowContextMenu_Opening">

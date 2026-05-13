@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
@@ -44,6 +45,23 @@ public sealed partial class NodeListView : UserControl
     // and read it back in RowContextMenu_Opening. Consumed each Opening.
     private NodeRowViewModel? _pendingRightClickRow;
 
+    /// <summary>Custom data-object format used to carry a row's node id between drag-source and drop-target.</summary>
+    private const string NodeIdDataFormat = "application/x-phoenixml-nodeid";
+
+    // Drag-source state.
+    private NodeRowViewModel? _pendingDragRow;
+    private Point _pendingDragOrigin;
+    private bool _dragInProgress;
+
+    // Row currently painted with a drop indicator. Cleared in OnRowDragLeave / after Drop.
+    private NodeRowViewModel? _activeDropTargetRow;
+
+    /// <summary>
+    /// Pixel threshold the cursor must travel from <see cref="_pendingDragOrigin"/> before
+    /// a click-and-hold escalates into a drag. Matches Avalonia's default text-selection drag threshold.
+    /// </summary>
+    private const double DragThreshold = 4.0;
+
     /// <summary>Initializes a new instance of <see cref="NodeListView"/>.</summary>
     public NodeListView()
     {
@@ -51,14 +69,194 @@ public sealed partial class NodeListView : UserControl
         AddHandler(InputElement.PointerPressedEvent, OnAnyPointerPressed,
             Avalonia.Interactivity.RoutingStrategies.Tunnel | Avalonia.Interactivity.RoutingStrategies.Bubble,
             handledEventsToo: true);
+        AddHandler(InputElement.PointerMovedEvent, OnAnyPointerMoved,
+            Avalonia.Interactivity.RoutingStrategies.Tunnel | Avalonia.Interactivity.RoutingStrategies.Bubble,
+            handledEventsToo: true);
+        AddHandler(InputElement.PointerReleasedEvent, OnAnyPointerReleased,
+            Avalonia.Interactivity.RoutingStrategies.Tunnel | Avalonia.Interactivity.RoutingStrategies.Bubble,
+            handledEventsToo: true);
+        AddHandler(DragDrop.DragOverEvent, OnRowDragOver, handledEventsToo: true);
+        AddHandler(DragDrop.DragLeaveEvent, OnRowDragLeave, handledEventsToo: true);
+        AddHandler(DragDrop.DropEvent, OnRowDrop, handledEventsToo: true);
     }
 
     private void OnAnyPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (!e.GetCurrentPoint(this).Properties.IsRightButtonPressed) return;
-        if (e.Source is not Avalonia.Visual src) return;
+        var props = e.GetCurrentPoint(this).Properties;
+        if (props.IsRightButtonPressed)
+        {
+            if (e.Source is not Avalonia.Visual src) return;
+            var lbi = src.FindAncestorOfType<ListBoxItem>(includeSelf: true);
+            if (lbi?.DataContext is NodeRowViewModel rv) _pendingRightClickRow = rv;
+            return;
+        }
+
+        if (props.IsLeftButtonPressed)
+        {
+            // Track candidate-drag origin. We only start a real drag once the pointer moves
+            // beyond DragThreshold so single clicks (selection, chevron, value-cell tap) still work.
+            if (e.Source is not Avalonia.Visual src) return;
+            var lbi = src.FindAncestorOfType<ListBoxItem>(includeSelf: true);
+            if (lbi?.DataContext is not NodeRowViewModel rv) return;
+
+            // Skip drag if a row is in edit mode — the user is typing, not dragging.
+            if (rv.IsEditing || rv.IsValueEditing) return;
+
+            // Skip drag if click started in the chevron button — leave that gesture alone.
+            if (src.FindAncestorOfType<Button>(includeSelf: true) is not null) return;
+
+            _pendingDragRow = rv;
+            _pendingDragOrigin = e.GetPosition(this);
+        }
+    }
+
+    private void OnAnyPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_pendingDragRow is null || _dragInProgress) return;
+        var props = e.GetCurrentPoint(this).Properties;
+        if (!props.IsLeftButtonPressed)
+        {
+            _pendingDragRow = null;
+            return;
+        }
+
+        var pos = e.GetPosition(this);
+        var dx = pos.X - _pendingDragOrigin.X;
+        var dy = pos.Y - _pendingDragOrigin.Y;
+        if (dx * dx + dy * dy < DragThreshold * DragThreshold) return;
+
+        // Threshold crossed — start a real drag. Capture row for clean-up after the async call.
+        var dragRow = _pendingDragRow;
+        _pendingDragRow = null;
+        _dragInProgress = true;
+        dragRow.RowOpacity = 0.5;
+
+        var data = new DataObject();
+        data.Set(NodeIdDataFormat, dragRow.Node.Id);
+
+        // Fire and forget — Avalonia's DoDragDrop is async but the result (drop effect) is
+        // delivered through the DropEvent on the target. We only need to clean up source-side state.
+        _ = StartDragAsync(dragRow, data, e);
+    }
+
+    private async System.Threading.Tasks.Task StartDragAsync(NodeRowViewModel dragRow, DataObject data, PointerEventArgs e)
+    {
+        try
+        {
+            await DragDrop.DoDragDrop(e, data, DragDropEffects.Move).ConfigureAwait(true);
+        }
+        finally
+        {
+            dragRow.RowOpacity = 1.0;
+            ClearDropIndicator();
+            _dragInProgress = false;
+        }
+    }
+
+    private void OnAnyPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        _pendingDragRow = null;
+    }
+
+    private void OnRowDragOver(object? sender, DragEventArgs e)
+    {
+        if (!e.Data.Contains(NodeIdDataFormat))
+        {
+            e.DragEffects = DragDropEffects.None;
+            return;
+        }
+
+        if (e.Source is not Avalonia.Visual src)
+        {
+            e.DragEffects = DragDropEffects.None;
+            return;
+        }
+
         var lbi = src.FindAncestorOfType<ListBoxItem>(includeSelf: true);
-        if (lbi?.DataContext is NodeRowViewModel rv) _pendingRightClickRow = rv;
+        if (lbi?.DataContext is not NodeRowViewModel targetRow)
+        {
+            ClearDropIndicator();
+            e.DragEffects = DragDropEffects.None;
+            return;
+        }
+
+        // Reject drop on self.
+        var srcId = e.Data.Get(NodeIdDataFormat) as string;
+        if (srcId is not null && srcId == targetRow.Node.Id)
+        {
+            ClearDropIndicator();
+            e.DragEffects = DragDropEffects.None;
+            return;
+        }
+
+        // Compute drop position from cursor Y within the target row.
+        var pos = ComputeDropPosition(e.GetPosition(lbi), lbi.Bounds.Height);
+        PaintDropIndicator(targetRow, pos);
+        e.DragEffects = DragDropEffects.Move;
+        e.Handled = true;
+    }
+
+    private void OnRowDragLeave(object? sender, DragEventArgs e) => ClearDropIndicator();
+
+    private void OnRowDrop(object? sender, DragEventArgs e)
+    {
+        try
+        {
+            if (!e.Data.Contains(NodeIdDataFormat)) return;
+            if (e.Source is not Avalonia.Visual src) return;
+            var lbi = src.FindAncestorOfType<ListBoxItem>(includeSelf: true);
+            if (lbi?.DataContext is not NodeRowViewModel targetRow) return;
+
+            if (e.Data.Get(NodeIdDataFormat) is not string srcId) return;
+            if (srcId == targetRow.Node.Id) return;
+
+            // Look up the source node from the flat-row list (must still be visible — which is
+            // fine because the user just dragged from it).
+            NodeRowViewModel? sourceRow = null;
+            foreach (var r in _flatRows)
+            {
+                if (r.Node.Id == srcId) { sourceRow = r; break; }
+            }
+            if (sourceRow is null) return;
+
+            var pos = ComputeDropPosition(e.GetPosition(lbi), lbi.Bounds.Height);
+            e.Handled = true;
+            NodeReorderRequested?.Invoke(sourceRow.Node, targetRow.Node, pos);
+        }
+        finally
+        {
+            ClearDropIndicator();
+        }
+    }
+
+    private static DropPosition ComputeDropPosition(Point cursor, double height)
+    {
+        if (height <= 0) return DropPosition.AsLastChild;
+        var third = height / 3.0;
+        if (cursor.Y < third) return DropPosition.BeforeTarget;
+        if (cursor.Y > height - third) return DropPosition.AfterTarget;
+        return DropPosition.AsLastChild;
+    }
+
+    private void PaintDropIndicator(NodeRowViewModel row, DropPosition pos)
+    {
+        if (_activeDropTargetRow is not null && !ReferenceEquals(_activeDropTargetRow, row))
+            _activeDropTargetRow.DropIndicatorThickness = new Thickness(0);
+
+        _activeDropTargetRow = row;
+        row.DropIndicatorThickness = pos switch
+        {
+            DropPosition.BeforeTarget => new Thickness(0, 2, 0, 0),
+            DropPosition.AfterTarget  => new Thickness(0, 0, 0, 2),
+            _                         => new Thickness(2),
+        };
+    }
+
+    private void ClearDropIndicator()
+    {
+        if (_activeDropTargetRow is null) return;
+        _activeDropTargetRow.DropIndicatorThickness = new Thickness(0);
+        _activeDropTargetRow = null;
     }
 
     private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
@@ -136,6 +334,15 @@ public sealed partial class NodeListView : UserControl
     /// name from the schema. The host routes to an insert command using that name.
     /// </summary>
     public event Action<ITreeNode, string>? NodeInsertAttributeWithNameRequested;
+
+    /// <summary>
+    /// Raised when the user drops a dragged row onto another row. The first argument is the
+    /// dragged source node; the second is the drop-target node; the third indicates where
+    /// the source should be placed relative to the target (last child, before, or after).
+    /// The host is responsible for routing to a vocabulary command (e.g. MoveSubtreeCommand
+    /// for XML) and silently ignoring drops that would create cycles or violate invariants.
+    /// </summary>
+    public event Action<ITreeNode, ITreeNode, DropPosition>? NodeReorderRequested;
 #pragma warning restore CA1003
 
     /// <summary>
@@ -752,6 +959,32 @@ public sealed class NodeRowViewModel : INotifyPropertyChanged
     {
         get => _editingValue;
         set { if (_editingValue == value) return; _editingValue = value; OnPropertyChanged(); }
+    }
+
+    private double _rowOpacity = 1.0;
+
+    /// <summary>
+    /// Row opacity. Drag-source rows dim to 0.5 while a drag is in progress; restored to 1.0
+    /// when the drag completes (regardless of drop result).
+    /// </summary>
+    public double RowOpacity
+    {
+        get => _rowOpacity;
+        set { if (_rowOpacity == value) return; _rowOpacity = value; OnPropertyChanged(); }
+    }
+
+    private Thickness _dropIndicatorThickness;
+
+    /// <summary>
+    /// Border thickness used to paint the drag-and-drop indicator on this row.
+    /// <see cref="Thickness.Top"/>=2 for a "drop before" sibling drop, <see cref="Thickness.Bottom"/>=2
+    /// for "drop after", and a uniform 2-dip border for "drop as child". Cleared (zero) when
+    /// the row is not the active drop target.
+    /// </summary>
+    public Thickness DropIndicatorThickness
+    {
+        get => _dropIndicatorThickness;
+        set { if (_dropIndicatorThickness == value) return; _dropIndicatorThickness = value; OnPropertyChanged(); }
     }
 
     /// <summary>Initializes a new <see cref="NodeRowViewModel"/> for the given node and depth.</summary>
