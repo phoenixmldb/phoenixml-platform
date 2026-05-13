@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
@@ -90,6 +91,32 @@ public sealed partial class NodeListView : UserControl
     /// selected row. The host should route to a vocabulary command (e.g. DeleteNodeCommand).
     /// </summary>
     public event Action<ITreeNode>? NodeDeleteRequested;
+
+    /// <summary>
+    /// Raised just before the row context menu opens so the host can populate schema-aware
+    /// insert options. The host sets <see cref="InsertOptions.ChildElementNames"/> and/or
+    /// <see cref="InsertOptions.AttributeNames"/> from the active schema. When either list is
+    /// non-empty, <see cref="NodeListView"/> builds a dynamic submenu of name choices; picking
+    /// a name fires <see cref="NodeInsertChildElementWithNameRequested"/> or
+    /// <see cref="NodeInsertAttributeWithNameRequested"/>. When the list is empty, the existing
+    /// single-click item fires <see cref="NodeInsertChildElementRequested"/> /
+    /// <see cref="NodeInsertAttributeRequested"/> as before.
+    /// </summary>
+    public event Action<ITreeNode, InsertOptions>? BuildingInsertOptions;
+
+    /// <summary>
+    /// Raised when the user picks a named child element from the schema-aware "Insert Child
+    /// Element" submenu. The first argument is the parent node; the second is the chosen element
+    /// local name from the schema. The host routes to an insert command using that name.
+    /// </summary>
+    public event Action<ITreeNode, string>? NodeInsertChildElementWithNameRequested;
+
+    /// <summary>
+    /// Raised when the user picks a named attribute from the schema-aware "Insert Attribute"
+    /// submenu. The first argument is the parent node; the second is the chosen attribute local
+    /// name from the schema. The host routes to an insert command using that name.
+    /// </summary>
+    public event Action<ITreeNode, string>? NodeInsertAttributeWithNameRequested;
 #pragma warning restore CA1003
 
     /// <summary>
@@ -246,6 +273,73 @@ public sealed partial class NodeListView : UserControl
         return null;
     }
 
+    /// <summary>
+    /// Selects the row with the given <paramref name="id"/> and immediately enters value-edit
+    /// mode (the same state as clicking into the value cell). Focuses the inline value
+    /// <see cref="TextBox"/> and selects all its text so the user can type to replace the
+    /// placeholder content in one gesture.
+    /// </summary>
+    /// <remarks>
+    /// Foundation for schema-aware Insert auto-focus: after inserting a simple-typed element
+    /// such as <c>&lt;title&gt;</c>, the host calls this so the user can type the element's
+    /// text content immediately without an extra click.
+    /// </remarks>
+    /// <param name="id">The <see cref="ITreeNode.Id"/> of the row to enter value-edit mode on.</param>
+    public void BeginValueEditById(string id)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        var host = this.FindControl<ListBox>("RowsHost");
+        if (host is null) return;
+
+        int targetIndex = -1;
+        NodeRowViewModel? targetRow = null;
+        for (int i = 0; i < _flatRows.Count; i++)
+        {
+            if (_flatRows[i].Node.Id == id)
+            {
+                targetIndex = i;
+                targetRow = _flatRows[i];
+                break;
+            }
+        }
+        if (targetRow is null) return;
+
+        host.SelectedIndex = targetIndex;
+        targetRow.EditingValue = targetRow.Value;
+        targetRow.IsValueEditing = true;
+
+        // Container realization is async — the TextBox isn't in the visual tree yet. Defer
+        // focusing until Avalonia has materialized the row, then locate the value-column
+        // TextBox (identified by its row VM's IsValueEditing flag) and SelectAll.
+        Dispatcher.UIThread.Post(() =>
+        {
+            var container = host.ContainerFromIndex(targetIndex);
+            if (container is null) return;
+            var textBox = FindValueColumnTextBox(container);
+            if (textBox is null) return;
+            textBox.Focus();
+            textBox.SelectAll();
+        }, DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// Finds the value-column <see cref="TextBox"/> within a realized row container.
+    /// Discriminates from the name-column TextBox by requiring both
+    /// <c>IsVisible</c> and <c>DataContext.IsValueEditing == true</c> on the
+    /// row view-model. In normal operation only one of the two TextBoxes is visible at a time,
+    /// but the <see cref="NodeRowViewModel.IsValueEditing"/> guard makes the lookup explicit.
+    /// </summary>
+    private static TextBox? FindValueColumnTextBox(Avalonia.Visual root)
+    {
+        foreach (var child in root.GetVisualDescendants())
+        {
+            if (child is TextBox tb && tb.IsVisible
+                && tb.DataContext is NodeRowViewModel row && row.IsValueEditing)
+                return tb;
+        }
+        return null;
+    }
+
     private void OnProviderChanged()
     {
         // Document.Changed can fire on a worker thread (e.g. SaveAsAsync's MarkClean
@@ -347,6 +441,94 @@ public sealed partial class NodeListView : UserControl
     {
         if (sender is MenuItem mi && mi.Tag is NodeRowViewModel row)
             NodeDeleteRequested?.Invoke(row.Node);
+    }
+
+    /// <summary>
+    /// Handles the <see cref="ContextMenu.Opening"/> event fired before a row's context menu
+    /// appears. Fires <see cref="BuildingInsertOptions"/> so the host can populate schema-aware
+    /// name lists. If names are provided, replaces the static "Insert Child Element" /
+    /// "Insert Attribute" items with a dynamic submenu; otherwise restores direct-click mode
+    /// by clearing <see cref="ItemsControl.ItemsSource"/> so the AXAML-wired
+    /// <c>Click</c> handler fires normally.
+    /// </summary>
+    private void RowContextMenu_Opening(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (sender is not ContextMenu menu) return;
+
+        // Resolve the node from the first menu item's Tag binding (all items bind Tag to the row VM).
+        NodeRowViewModel? rowVm = null;
+        foreach (var item in menu.Items)
+        {
+            if (item is MenuItem mi && mi.Tag is NodeRowViewModel rv)
+            {
+                rowVm = rv;
+                break;
+            }
+        }
+        if (rowVm is null) return;
+
+        var options = new InsertOptions();
+        BuildingInsertOptions?.Invoke(rowVm.Node, options);
+
+        // Locate the named menu items. Name bindings in DataTemplate-generated menus are not
+        // registered in the logical tree the normal way; traverse Items directly.
+        MenuItem? insertChildItem = null;
+        MenuItem? insertAttrItem = null;
+        foreach (var item in menu.Items)
+        {
+            if (item is MenuItem mi)
+            {
+                if (mi.Header is string h)
+                {
+                    if (h == "Insert Child Element") insertChildItem = mi;
+                    else if (h == "Insert Attribute") insertAttrItem = mi;
+                }
+            }
+        }
+
+        if (insertChildItem is not null)
+            ConfigureInsertItem(insertChildItem, rowVm.Node, options.ChildElementNames,
+                name => NodeInsertChildElementWithNameRequested?.Invoke(rowVm.Node, name));
+
+        if (insertAttrItem is not null)
+            ConfigureInsertItem(insertAttrItem, rowVm.Node, options.AttributeNames,
+                name => NodeInsertAttributeWithNameRequested?.Invoke(rowVm.Node, name));
+    }
+
+    /// <summary>
+    /// Configures <paramref name="item"/> as either a direct-click item (when
+    /// <paramref name="names"/> is empty) or a submenu populated with one entry per name.
+    /// When in submenu mode, clicking a child item fires <paramref name="withName"/>.
+    /// When in direct-click mode, <c>ItemsSource</c> is cleared so the AXAML-wired
+    /// <c>Click</c> handler (for the no-schema fallback) remains active.
+    /// </summary>
+    private static void ConfigureInsertItem(
+        MenuItem item,
+        ITreeNode node,
+        IReadOnlyList<string> names,
+        Action<string> withName)
+    {
+        if (names.Count == 0)
+        {
+            // Restore direct-click mode: clear any previous submenu so Avalonia uses the
+            // Click handler wired in AXAML (InsertChildElement_Click / InsertAttribute_Click).
+            item.ItemsSource = null;
+        }
+        else
+        {
+            // Build a fresh submenu list. Re-creating on every Opening avoids stale handlers
+            // from previous menu opens. The list is small (schema children) so allocation cost
+            // is negligible.
+            var subItems = new List<MenuItem>(names.Count);
+            foreach (var name in names)
+            {
+                var sub = new MenuItem { Header = name };
+                var capturedName = name;
+                sub.Click += (_, _) => withName(capturedName);
+                subItems.Add(sub);
+            }
+            item.ItemsSource = subItems;
+        }
     }
 
     private void EditingBox_KeyDown(object? sender, KeyEventArgs e)

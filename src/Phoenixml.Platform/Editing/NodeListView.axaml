@@ -13,11 +13,13 @@
                         BorderThickness="0">
                 <Grid ColumnDefinitions="360,1,*">
                     <Grid.ContextMenu>
-                        <ContextMenu>
-                            <MenuItem Header="Insert Child Element"
+                        <ContextMenu Opening="RowContextMenu_Opening">
+                            <MenuItem Name="InsertChildElementItem"
+                                      Header="Insert Child Element"
                                       Click="InsertChildElement_Click"
                                       Tag="{Binding}" />
-                            <MenuItem Header="Insert Attribute"
+                            <MenuItem Name="InsertAttributeItem"
+                                      Header="Insert Attribute"
                                       Click="InsertAttribute_Click"
                                       Tag="{Binding}" />
                             <Separator />
