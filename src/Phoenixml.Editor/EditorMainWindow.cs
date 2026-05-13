@@ -38,7 +38,7 @@ namespace Phoenixml.Editor;
 /// This class wraps it via composition and exposes the configured
 /// <see cref="Window"/> instance via <see cref="Window"/>.
 /// </remarks>
-public sealed class EditorMainWindow : IFindHost
+public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
 {
     private readonly MainWindow _window;
     private readonly EditorState _state = new();
@@ -48,6 +48,8 @@ public sealed class EditorMainWindow : IFindHost
     private readonly MatchIndex _matchIndex = new();
     private readonly FindBar _findBar = new() { IsVisible = false };
     private readonly FindController _findController;
+    private readonly XPathQueryBar _xpathBar = new() { IsVisible = false };
+    private readonly XPathQueryController _xpathController;
     private readonly SchemaCache _schemaCache = new();
     private readonly BreadcrumbView _breadcrumb = new();
     private IDocument? _subscribedDocument;
@@ -92,6 +94,13 @@ public sealed class EditorMainWindow : IFindHost
         _findBar.CloseRequested += _findController.OnClose;
         _findBar.ReplaceCurrentRequested += rep => _findController.OnReplaceCurrent(rep);
         _findBar.ReplaceAllRequested += rep => _findController.OnReplaceAll(rep);
+
+        // XPath query bar — separate highlight mode, mutually exclusive with FindBar so
+        // the two tint sources don't clash. See ShowXPathBar / ShowFindBar for the mutex.
+        _xpathController = new XPathQueryController(this, _matchIndex);
+        _xpathBar.QuerySubmitted += async xp => await _xpathController.OnQuerySubmittedAsync(xp);
+        _xpathBar.PreviousRequested += _xpathController.OnPrevious;
+        _xpathBar.CloseRequested += _xpathController.OnClose;
 
         // Wire F2 inline rename — routes to element or attribute command based on node kind.
         _nodeList.NodeRenameRequested += (node, newLabel) =>
@@ -311,8 +320,10 @@ public sealed class EditorMainWindow : IFindHost
         // above the list. Col 2; find bar starts hidden, breadcrumb starts empty.
         var rightColumn = new DockPanel { LastChildFill = true };
         DockPanel.SetDock(_findBar, Dock.Top);
+        DockPanel.SetDock(_xpathBar, Dock.Top);
         DockPanel.SetDock(_breadcrumb, Dock.Top);
         rightColumn.Children.Add(_findBar);
+        rightColumn.Children.Add(_xpathBar);
         rightColumn.Children.Add(_breadcrumb);
         rightColumn.Children.Add(_nodeList);
 
@@ -424,6 +435,11 @@ public sealed class EditorMainWindow : IFindHost
         {
             Gesture = new KeyGesture(Key.H, KeyModifiers.Control),
             Command = new RelayCommand(ShowFindBarInReplaceMode),
+        });
+        _window.KeyBindings.Add(new KeyBinding
+        {
+            Gesture = new KeyGesture(Key.G, KeyModifiers.Control),
+            Command = new RelayCommand(ShowXPathBar),
         });
         _window.KeyBindings.Add(new KeyBinding
         {
@@ -809,6 +825,8 @@ public sealed class EditorMainWindow : IFindHost
     /// </summary>
     internal void ShowFindBar()
     {
+        // Mutex with XPath bar — both feed the same MatchIndex, so only one tints at a time.
+        if (_xpathBar.IsVisible) _xpathController.OnClose();
         _findBar.IsVisible = true;
         _findBar.FocusQueryBox();
     }
@@ -819,6 +837,7 @@ public sealed class EditorMainWindow : IFindHost
     /// </summary>
     internal void ShowFindBarInReplaceMode()
     {
+        if (_xpathBar.IsVisible) _xpathController.OnClose();
         _findBar.IsVisible = true;
         _findBar.OpenReplaceMode();
     }
@@ -831,6 +850,31 @@ public sealed class EditorMainWindow : IFindHost
     {
         _findBar.IsVisible = false;
         _findBar.Reset();
+    }
+
+    /// <summary>
+    /// Shows the XPath query bar and focuses its input. Hides the FindBar first when open —
+    /// the two highlight modes share <see cref="MatchIndex"/> and would clash if visible
+    /// simultaneously. Triggered by Ctrl+G.
+    /// </summary>
+    internal void ShowXPathBar()
+    {
+        if (_findBar.IsVisible)
+        {
+            _findController.OnClose();    // clear FindBar matches before swap
+        }
+        _xpathBar.IsVisible = true;
+        _xpathBar.FocusQueryBox();
+    }
+
+    /// <summary>
+    /// Hides the XPath bar and resets its state. Called by
+    /// <see cref="XPathQueryController.OnClose"/> via <see cref="IXPathQueryHost"/>.
+    /// </summary>
+    internal void HideXPathBar()
+    {
+        _xpathBar.IsVisible = false;
+        _xpathBar.Reset();
     }
 
     // -------------------------------------------------------------------------
@@ -921,6 +965,28 @@ public sealed class EditorMainWindow : IFindHost
     /// <inheritdoc/>
     void IFindHost.SetMatchCount(int active, int total) =>
         _findBar.SetMatchCount(active, total);
+
+    // -------------------------------------------------------------------------
+    // IXPathQueryHost explicit implementation
+    // -------------------------------------------------------------------------
+
+    /// <inheritdoc/>
+    XmlDocument? IXPathQueryHost.ActiveDocument => _state.ActiveDocument;
+
+    /// <inheritdoc/>
+    XmlTreeNodeProvider? IXPathQueryHost.ActiveProvider =>
+        _state.ActiveDocument?.TreeNodes as XmlTreeNodeProvider;
+
+    /// <inheritdoc/>
+    void IXPathQueryHost.EnsureVisibleAndSelect(string nodeId) =>
+        _nodeList.EnsureVisibleAndSelect(nodeId);
+
+    /// <inheritdoc/>
+    void IXPathQueryHost.HideXPathBar() => HideXPathBar();
+
+    /// <inheritdoc/>
+    void IXPathQueryHost.SetXPathMatchCount(int active, int total, string? error) =>
+        _xpathBar.SetMatchCount(active, total, error);
 }
 
 /// <summary>

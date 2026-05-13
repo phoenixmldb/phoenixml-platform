@@ -1,6 +1,6 @@
 # Phoenixml.Editor v0.12 — Walkthrough & Rough-Edges Log
 
-**Status as of 2026-05-13:** v0.12 ships **Drag-and-drop reorder** of tree rows (Plan 19) and **Breadcrumb + status-bar XPath** for the current selection (Plan 20). Drag any element row onto another to move it; drop **on** the row inserts as last child, drop **above** or **below** inserts as a preceding or following sibling. NodeId identity is preserved across the move, so selection and external references survive. Single undo per drag gesture. Selecting any node now shows its canonical XPath in the status bar and renders a clickable ancestor breadcrumb above the tree.
+**Status as of 2026-05-13:** v0.12 ships **Drag-and-drop reorder** of tree rows (Plan 19), **Breadcrumb + status-bar XPath** for the current selection (Plan 20), and an **XPath query bar** (Plan 21). Drag any element row onto another to move it; drop **on** the row inserts as last child, drop **above** or **below** inserts as a preceding or following sibling. NodeId identity is preserved across the move, so selection and external references survive. Single undo per drag gesture. Selecting any node now shows its canonical XPath in the status bar and renders a clickable ancestor breadcrumb above the tree. **Ctrl+G** opens an XPath query bar above the tree — type an expression (e.g. `//book[year='1978']`), press Enter to highlight matching nodes via the same tinted-row machinery as Find.
 
 ## How to run
 
@@ -64,9 +64,12 @@ Load `/raid/tmp/v0.8-smoke/data-and-schemas-by-type/data/library.xml`. Test the 
 
 - [x] ~~**No drag-and-drop reorder of children.**~~ — Drag a row, drop on/above/below another to move. NodeId-preserving, single undo, cycle-rejected.
 
+### Resolved 2026-05-13 (Plan 21)
+
+- [x] ~~**No XPath query bar.**~~ — Ctrl+G opens an XPath bar; expressions return a node-set that tints matching rows. Enter cycles to next, Shift+Enter previous, Escape closes. Compile/runtime errors render inline.
+
 ### High friction (carried)
 
-- [ ] **No XPath query bar.**
 - [ ] **No regex search/replace.**
 - [ ] **No outline/breadcrumb showing the selected node's full XPath.**
 - [ ] **No compare-two-documents view.**
@@ -146,17 +149,87 @@ Load `/raid/tmp/v0.8-smoke/data-and-schemas-by-type/data/library.xml`. Test:
 | Switch tabs to a different document | Breadcrumb empties + XPath segment disappears, then repopulates for the new tab's first selection. | tbd |
 | Delete the selected node | Breadcrumb + XPath clear (no SelectionChanged → manual: tap a sibling row to verify rebuild). | tbd |
 
-## What's next: Plan 21 candidates
+## Plan 21 — XPath query bar (NEW)
+
+Read-only query feature; no document mutation. Mutually exclusive with the Find bar — the two share the same `MatchIndex` and would clash if both rendered simultaneously, so opening one closes the other.
+
+- **Ctrl+G opens the bar** above the tree (below the FindBar dock slot,
+  above the breadcrumb). The input has a monospace font and a placeholder
+  hint showing a sample predicate expression.
+- **Enter submits.** The expression is fed verbatim to PhoenixmlDb.XQuery,
+  evaluated against the active document, and result nodes are stored in
+  the shared `MatchIndex`. The first match becomes the active match and
+  the tree expands/scrolls to it.
+- **Enter again cycles** — submitting the same string a second time
+  advances to the next match (wraps from the last). Shift+Enter retreats.
+- **Escape closes** the bar, clears the match index, refreshes the tree.
+- **Compile / runtime errors** render in the counter slot as red text,
+  and the input border turns red. The bar stays open so the user can
+  iterate on the expression without re-opening.
+- **Scalar results** (`count(//book)`, `string-length(...)`) are
+  silently dropped — only XdmNode results contribute to the match set.
+  Scalar display in the status bar is Plan 22.
+- **Mutex with FindBar** — Ctrl+G while FindBar is open closes the
+  FindBar (and clears its matches) before showing XPath; Ctrl+F while
+  XPathBar is open does the reverse.
+
+### Architecture pieces added in Plan 21
+
+- **`XPathQueryService`** in `Phoenixml.Platform.Editor.Xml.Find` —
+  static `EvaluateAsync(XmlDocument, string, CancellationToken) → XPathResult`.
+  Builds an `INodeStore` adapter over the editor's `XmlDocument` so
+  PhoenixmlDb.XQuery's `QueryEngine` can resolve `NodeId`s + namespace
+  URIs against the in-memory tree without re-parsing. Catches
+  `XQueryParseException` and `XQueryRuntimeException`, surfacing the
+  message in `XPathResult.Error`. 9 unit tests.
+- **`XPathQueryBar`** in `Phoenixml.Editor.Find` — Avalonia
+  `UserControl`, single-row layout, no debounce (XPath compile is
+  expensive — submit only on Enter). Exposes `QuerySubmitted`,
+  `PreviousRequested`, `CloseRequested` events.
+- **`XPathQueryController`** — orchestrates bar + service +
+  `MatchIndex`. Same shape as `FindController`; reuses the same
+  highlight machinery, so no new tinting code is needed. Detects
+  re-submission of the same string and routes it to `OnNext` for the
+  Enter-to-cycle pattern.
+- **`EditorMainWindow`** — Ctrl+G key binding, mutex against
+  `FindBar` via `_xpathController.OnClose()` / `_findController.OnClose()`,
+  `IXPathQueryHost` impl providing document/provider access and
+  `SetXPathMatchCount`.
+
+### Smoke-test checklist (manual)
+
+Load a multi-element XML doc (`library.xml`). Test:
+
+| Action | Expected | Actual |
+|---|---|---|
+| Ctrl+G | XPath bar opens above the tree; input focused. | tbd |
+| Type `//book`, Enter | All `<book>` rows tint; counter shows `1 / N`; first book is active. | tbd |
+| Press Enter again | Counter advances to `2 / N`; tree scrolls to next book. | tbd |
+| Shift+Enter | Cycles backwards (wraps at start). | tbd |
+| Type `//book[year='1978']`, Enter | Exactly one book matches and is highlighted. | tbd |
+| Type `//@isbn`, Enter | Attribute rows tint (one per attribute match). | tbd |
+| Type `//book[2]/title`, Enter | The second book's `<title>` is the sole match. | tbd |
+| Type `//[broken`, Enter | Input border turns red; counter shows the parse error message. | tbd |
+| Type `count(//book)`, Enter | No matches highlighted (scalar dropped); counter shows `no matches`. | tbd |
+| Type `//nonexistent`, Enter | Counter shows `no matches`; no tints. | tbd |
+| Escape | Bar hides, highlights clear, input/counter reset. | tbd |
+| Ctrl+F while XPath bar open | Find bar opens, XPath bar closes, XPath highlights clear. | tbd |
+| Ctrl+G while Find bar open | XPath bar opens, Find bar closes, Find highlights clear. | tbd |
+| Edit a matched node (rename/value) | Match set re-evaluates (controller subscribes to `Document.Changed`). | tbd |
+
+## What's next: Plan 22 candidates
 
 In priority order:
 
-1. **Editable XPath bar** — type an XPath, navigate or select-set the matches.
+1. **Scalar XPath result display** — show `count(//book) → 12` in the status bar when the expression evaluates to an atomic.
 2. **Right-click "Copy XPath" on tree rows** — clipboard convenience.
 3. **Failed-* reporting** — status-bar segment surfacing silent rejects (failed paste, cycle-rejected drop, malformed replace).
 4. **Compare two documents** — diff side-by-side using two NodeListView instances.
 5. **Cut/copy/paste of attributes.**
 6. **Auto-scroll during drag** + **drop preview ghost** — drag-drop polish.
 7. **Breadcrumb ellipsization** for deeply nested docs.
+8. **XPath history dropdown** — recent expressions per-tab or per-session.
+9. **XPath function autocompletion** in the bar.
 
 LSP integration still waits on engine release cadence.
 

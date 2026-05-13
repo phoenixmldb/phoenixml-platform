@@ -1,0 +1,29 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Phoenixml.Editor.Find.XPathQueryBar">
+    <Border Background="#1E1E1E"
+            BorderBrush="#4A4A4F"
+            BorderThickness="0,0,0,1"
+            Padding="6,4">
+        <StackPanel Orientation="Horizontal" Spacing="4">
+            <TextBlock Text="XPath" VerticalAlignment="Center"
+                       Foreground="#9D9D9D" MinWidth="40" />
+            <TextBox Name="QueryBox" Width="320"
+                     Watermark="//book[year='1978']"
+                     VerticalAlignment="Center"
+                     FontFamily="Cascadia Mono, Consolas, monospace" />
+            <TextBlock Name="CounterText" VerticalAlignment="Center"
+                       Foreground="#9D9D9D"
+                       MinWidth="160" />
+            <Button Name="PrevButton" Content="↑" Width="28" Height="28"
+                    VerticalAlignment="Center"
+                    ToolTip.Tip="Previous match (Shift+Enter)" />
+            <Button Name="NextButton" Content="↓" Width="28" Height="28"
+                    VerticalAlignment="Center"
+                    ToolTip.Tip="Next match (Enter)" />
+            <Button Name="CloseButton" Content="✕" Width="28" Height="28"
+                    VerticalAlignment="Center"
+                    ToolTip.Tip="Close (Esc)" />
+        </StackPanel>
+    </Border>
+</UserControl>
