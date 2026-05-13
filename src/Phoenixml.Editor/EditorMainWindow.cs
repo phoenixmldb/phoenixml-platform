@@ -3,6 +3,8 @@ using System.Xml.Schema;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
+using Phoenixml.Editor.Clipboard;
 using Phoenixml.Editor.Commands;
 using Phoenixml.Editor.Find;
 using Phoenixml.Editor.Menus;
@@ -13,6 +15,7 @@ using Phoenixml.Editor.ViewModels;
 using Phoenixml.Platform.Abstractions.Documents;
 using Phoenixml.Platform.Abstractions.Editing;
 using Phoenixml.Platform.Editor.Xml;
+using Phoenixml.Platform.Editor.Xml.Clipboard;
 using Phoenixml.Platform.Editor.Xml.Editing;
 using Phoenixml.Platform.Editor.Xml.Tree;
 using Phoenixml.Platform.Editor.Xml.Validation;
@@ -45,6 +48,12 @@ public sealed class EditorMainWindow : IFindHost
     private readonly FindController _findController;
     private readonly SchemaCache _schemaCache = new();
     private IDocument? _subscribedDocument;
+
+    /// <summary>
+    /// Clipboard service, initialized once the window's TopLevel is available (on Opened).
+    /// Null before the window is shown; clipboard handlers no-op when null.
+    /// </summary>
+    private ClipboardService? _clipboard;
 
     /// <summary>
     /// Gets the persisted editor settings store. Menus and commands read from and
@@ -344,6 +353,31 @@ public sealed class EditorMainWindow : IFindHost
             Gesture = new KeyGesture(Key.H, KeyModifiers.Control),
             Command = new RelayCommand(ShowFindBarInReplaceMode),
         });
+        _window.KeyBindings.Add(new KeyBinding
+        {
+            Gesture = new KeyGesture(Key.C, KeyModifiers.Control),
+            Command = new RelayCommand(async () => await CopySelectionAsync()),
+        });
+        _window.KeyBindings.Add(new KeyBinding
+        {
+            Gesture = new KeyGesture(Key.X, KeyModifiers.Control),
+            Command = new RelayCommand(async () => await CutSelectionAsync()),
+        });
+        _window.KeyBindings.Add(new KeyBinding
+        {
+            Gesture = new KeyGesture(Key.V, KeyModifiers.Control),
+            Command = new RelayCommand(async () => await PasteAsync()),
+        });
+
+        // Initialize ClipboardService once the window's TopLevel is realized.
+        // Opened fires after the window is fully attached to the visual tree,
+        // guaranteeing TopLevel.Clipboard is non-null.
+        _window.Opened += (_, _) =>
+        {
+            var topLevel = TopLevel.GetTopLevel(_window);
+            if (topLevel?.Clipboard is IClipboard clip)
+                _clipboard = ClipboardService.FromAvalonia(clip);
+        };
 
         UpdateStatusBar();
 
@@ -632,6 +666,73 @@ public sealed class EditorMainWindow : IFindHost
     {
         _findBar.IsVisible = false;
         _findBar.Reset();
+    }
+
+    // -------------------------------------------------------------------------
+    // Clipboard handlers (Ctrl+C / Ctrl+X / Ctrl+V)
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Copies the selected element and its entire descendant subtree to the clipboard as XML.
+    /// No-ops when there is no active document, no selection, or the selected node is not an element.
+    /// </summary>
+    private async Task CopySelectionAsync()
+    {
+        if (_clipboard is null) return;
+        if (_state.ActiveDocument is not XmlDocument doc) return;
+        if (_nodeList.SelectedNode is not XmlTreeNode xmlNode) return;
+        if (xmlNode.XdmNode is not XdmElement el) return;
+
+        var xml = SubtreeSerializer.Serialize(doc, el.Id);
+        await _clipboard.WriteXmlAsync(xml);
+    }
+
+    /// <summary>
+    /// Copies the selected element subtree to the clipboard (same as Ctrl+C) then deletes the
+    /// source element via <see cref="DeleteNodeCommand"/> so the operation is a single undo step.
+    /// The clipboard write is not part of the undo stack — Ctrl+Z restores the node while the
+    /// clipboard retains the XML, matching standard text-editor Cut behaviour.
+    /// </summary>
+    private async Task CutSelectionAsync()
+    {
+        if (_clipboard is null) return;
+        if (_state.ActiveDocument is not XmlDocument doc) return;
+        if (_nodeList.SelectedNode is not XmlTreeNode xmlNode) return;
+        if (xmlNode.XdmNode is not XdmElement el) return;
+
+        var xml = SubtreeSerializer.Serialize(doc, el.Id);
+        await _clipboard.WriteXmlAsync(xml);
+
+        try
+        {
+            doc.Undo.Execute(new DeleteNodeCommand(doc, el.Id));
+        }
+        catch (InvalidOperationException) { /* document root delete attempt — ignore */ }
+    }
+
+    /// <summary>
+    /// Reads XML from the clipboard and inserts it as the last child of the currently selected
+    /// element via <see cref="InsertSubtreeCommand"/>. Silently ignores malformed clipboard XML
+    /// and non-element selections (Plan 19 will surface parse errors in the status bar).
+    /// </summary>
+    private async Task PasteAsync()
+    {
+        if (_clipboard is null) return;
+        if (_state.ActiveDocument is not XmlDocument doc) return;
+        if (_nodeList.SelectedNode is not XmlTreeNode xmlNode) return;
+        if (xmlNode.XdmNode is not XdmElement parent) return;
+
+        var xml = await _clipboard.ReadXmlAsync();
+        if (string.IsNullOrEmpty(xml)) return;
+
+        try
+        {
+            var cmd = new InsertSubtreeCommand(doc, parent.Id, xml);
+            doc.Undo.Execute(cmd);
+            _nodeList.ExpandById(xmlNode.Id);
+        }
+        catch (System.Xml.XmlException) { /* malformed clipboard XML — silent for v0.11 */ }
+        catch (InvalidOperationException) { /* parent not element / invariant failure */ }
     }
 
     // -------------------------------------------------------------------------
