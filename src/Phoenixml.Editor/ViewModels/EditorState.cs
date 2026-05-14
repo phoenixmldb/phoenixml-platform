@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using Phoenixml.Platform.Documents;
 using Phoenixml.Platform.Editor.Xml;
 
 namespace Phoenixml.Editor.ViewModels;
@@ -8,10 +9,9 @@ namespace Phoenixml.Editor.ViewModels;
 /// View-model state for the editor window. Holds an ordered list of open
 /// <see cref="DocumentTab"/> instances with one designated as active.
 /// <para>
-/// <see cref="ActiveDocument"/> is preserved as a forwarding accessor so existing
-/// callers (Save command, Insert/Delete handlers, address bar, status bar) compile
-/// unchanged. Its setter routes through <see cref="OpenDocument"/> so the same
-/// document is never opened in two tabs.
+/// Plan 26: generalized from <see cref="XmlDocument"/> to <see cref="Document"/> so
+/// text-vocabulary documents (<c>TextDocument</c>) can ride the same tab system.
+/// XML-only consumers type-narrow with <c>is XmlDocument</c>.
 /// </para>
 /// </summary>
 internal sealed class EditorState
@@ -33,7 +33,6 @@ internal sealed class EditorState
 
     /// <summary>
     /// The currently focused tab, or <see langword="null"/> when no tab is open.
-    /// Setting to a tab not in <see cref="Tabs"/> throws <see cref="ArgumentException"/>.
     /// </summary>
     public DocumentTab? ActiveTab
     {
@@ -50,15 +49,10 @@ internal sealed class EditorState
     }
 
     /// <summary>
-    /// Convenience accessor for the active tab's document. Preserved for source
-    /// compatibility — callers should prefer <see cref="OpenDocument"/> for new code.
-    /// <para>
-    /// The setter deduplicates by document reference: if the document already has a
-    /// tab it is activated; otherwise <see cref="OpenDocument"/> is called to add one.
-    /// Setting <see langword="null"/> clears the active tab.
-    /// </para>
+    /// Convenience accessor for the active tab's document. Setter dedupes: if a tab
+    /// already holds the document it's activated; otherwise opens a new tab.
     /// </summary>
-    public XmlDocument? ActiveDocument
+    public Document? ActiveDocument
     {
         get => _activeTab?.Document;
         set
@@ -83,11 +77,10 @@ internal sealed class EditorState
     }
 
     /// <summary>
-    /// Adds a new tab for <paramref name="document"/> and activates it. If
-    /// <paramref name="document"/> already has a tab that tab is activated instead
-    /// (no duplicates). Returns the tab — new or existing.
+    /// Adds a new tab for <paramref name="document"/> and activates it. If a tab
+    /// already wraps the document, that tab is activated.
     /// </summary>
-    public DocumentTab OpenDocument(XmlDocument document)
+    public DocumentTab OpenDocument(Document document)
     {
         ArgumentNullException.ThrowIfNull(document);
 
@@ -102,15 +95,15 @@ internal sealed class EditorState
 
         var newTab = new DocumentTab(document);
         _tabs.Add(newTab);
+        TabAdded?.Invoke(newTab);
         ActiveTab = newTab;
         return newTab;
     }
 
     /// <summary>
-    /// Closes <paramref name="tab"/>. If it was the active tab a neighbor is
-    /// activated: the tab to the right is preferred; the tab to the left is used
-    /// when closing the rightmost tab. If no tabs remain <see cref="ActiveTab"/>
-    /// becomes <see langword="null"/>. No-ops if <paramref name="tab"/> is not open.
+    /// Closes <paramref name="tab"/>. Right-neighbor preferred for next-active; falls
+    /// back to left neighbor when removing the last tab. <see cref="ActiveTab"/>
+    /// becomes null when no tabs remain. No-op for unknown tabs.
     /// </summary>
     public void CloseTab(DocumentTab tab)
     {
@@ -121,6 +114,7 @@ internal sealed class EditorState
 
         var wasActive = ReferenceEquals(_activeTab, tab);
         _tabs.RemoveAt(idx);
+        TabClosed?.Invoke(tab);
 
         if (!wasActive) return;
 
@@ -130,23 +124,25 @@ internal sealed class EditorState
             return;
         }
 
-        // Prefer right neighbor; fall back to left when we removed the last item.
         var nextIdx = idx < _tabs.Count ? idx : _tabs.Count - 1;
         ActiveTab = _tabs[nextIdx];
     }
 
-    /// <summary>Raised after <see cref="ActiveTab"/> changes (including to <see langword="null"/>).</summary>
+    /// <summary>Raised after <see cref="ActiveTab"/> changes (including to null).</summary>
     public event Action<DocumentTab?>? ActiveTabChanged;
+
+    /// <summary>Raised after a tab is added via <see cref="OpenDocument"/>.</summary>
+    public event Action<DocumentTab>? TabAdded;
+
+    /// <summary>Raised after a tab is removed via <see cref="CloseTab"/>.</summary>
+    public event Action<DocumentTab>? TabClosed;
 
     /// <summary>
     /// Swaps the document of the tab currently holding <paramref name="old"/> to
-    /// <paramref name="fresh"/>. If the affected tab is the active tab, fires
-    /// <see cref="ActiveDocumentChanged"/> with the new document.
-    /// No-op when <paramref name="old"/> is not currently in any tab.
+    /// <paramref name="fresh"/>. Fires <see cref="ActiveDocumentChanged"/> when the
+    /// affected tab is the active one. No-op for unknown <paramref name="old"/>.
     /// </summary>
-    /// <param name="old">The document reference to find and replace. Must not be <see langword="null"/>.</param>
-    /// <param name="fresh">The replacement document. Must not be <see langword="null"/>.</param>
-    public void ReplaceDocument(XmlDocument old, XmlDocument fresh)
+    public void ReplaceDocument(Document old, Document fresh)
     {
         ArgumentNullException.ThrowIfNull(old);
         ArgumentNullException.ThrowIfNull(fresh);
@@ -168,9 +164,6 @@ internal sealed class EditorState
             ActiveDocumentChanged?.Invoke(fresh);
     }
 
-    /// <summary>
-    /// Raised after <see cref="ActiveDocument"/> changes. Preserved for backwards
-    /// compatibility — fires alongside <see cref="ActiveTabChanged"/>.
-    /// </summary>
-    public event Action<XmlDocument?>? ActiveDocumentChanged;
+    /// <summary>Raised after <see cref="ActiveDocument"/> changes.</summary>
+    public event Action<Document?>? ActiveDocumentChanged;
 }

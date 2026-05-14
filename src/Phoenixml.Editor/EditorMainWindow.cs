@@ -43,6 +43,10 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
     private readonly MainWindow _window;
     private readonly EditorState _state = new();
     private readonly NodeListView _nodeList;
+    private readonly Views.TextEditorView _textEditor = new();
+    private ContentControl _centralPane = null!;
+    private readonly Lsp.LspServerRegistry _lspRegistry = new(AppContext.BaseDirectory);
+    private readonly Dictionary<ViewModels.DocumentTab, Lsp.LspSession> _lspSessions = new();
     private readonly EditorValidationService _validation;
     private readonly DiagnosticIndex _diagIndex = new();
     private readonly MatchIndex _matchIndex = new();
@@ -455,7 +459,8 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
         rightColumn.Children.Add(_findBar);
         rightColumn.Children.Add(_xpathBar);
         rightColumn.Children.Add(_breadcrumb);
-        rightColumn.Children.Add(_nodeList);
+        _centralPane = new ContentControl { Content = _nodeList };
+        rightColumn.Children.Add(_centralPane);
 
         // Wire selection → status-bar XPath + breadcrumb path. Read-only navigation feature
         // (Plan 20). XPath is recomputed every change; the breadcrumb is rebuilt from the
@@ -488,7 +493,7 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
 
         // Wire validation: track the active document and push diagnostics to the view
         // and to the DiagnosticIndex so tree rows can show inline error glyphs.
-        _state.ActiveDocumentChanged += doc => _validation.SetActiveDocument(doc);
+        _state.ActiveDocumentChanged += doc => _validation.SetActiveDocument(doc as XmlDocument);
         _validation.DiagnosticsChanged += diags =>
         {
             _diagIndex.Reset(diags);
@@ -632,13 +637,14 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
                 case DirtyDocsConfirmDialog.Result.DiscardAll:
                     foreach (var t in dirtyTabs)
                     {
-                        if (t.Document.Source is Uri src && System.IO.File.Exists(src.LocalPath))
+                        if (t.Document is XmlDocument xdoc
+                            && xdoc.Source is Uri src && System.IO.File.Exists(src.LocalPath))
                         {
                             try
                             {
                                 var fresh = await Phoenixml.Platform.Editor.Xml.XmlDocument
                                     .LoadAsync(src.LocalPath, CancellationToken.None);
-                                _state.ReplaceDocument(t.Document, fresh);
+                                _state.ReplaceDocument(xdoc, fresh);
                             }
                             catch (System.IO.IOException) { t.Document.MarkClean(); }
                             catch (System.Xml.XmlException) { t.Document.MarkClean(); }
@@ -646,7 +652,7 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
                         }
                         else
                         {
-                            // Never-saved doc — no source to reload from. MarkClean is the only option.
+                            // Never-saved doc / text doc — MarkClean is the only option for MVP.
                             t.Document.MarkClean();
                         }
                     }
@@ -674,6 +680,84 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
         };
 
         _state.ActiveDocumentChanged += OnActiveDocumentChanged;
+        _state.ActiveDocumentChanged += SwapCentralPane;
+
+        // Plan 26 #8: per-tab LSP sessions for text documents.
+        _state.TabAdded += tab =>
+        {
+            if (tab.Document is Phoenixml.Platform.Editor.Text.TextDocument text)
+                _ = StartLspSessionAsync(tab, text);
+        };
+        _state.TabClosed += tab =>
+        {
+            if (_lspSessions.Remove(tab, out var session))
+                _ = session.DisposeAsync().AsTask();
+        };
+    }
+
+    private async Task StartLspSessionAsync(ViewModels.DocumentTab tab, Phoenixml.Platform.Editor.Text.TextDocument doc)
+    {
+        var path = _lspRegistry.PathFor(doc.Kind);
+        if (path is null || !System.IO.File.Exists(path))
+        {
+            NotifyAction($"LSP server not found for {doc.Kind} ({path ?? "no path"})");
+            return;
+        }
+        try
+        {
+            var process = new Lsp.LspServerProcess(path);
+            var session = Lsp.LspSession.FromProcess(doc, process);
+            session.DiagnosticsArrived += OnLspDiagnostics;
+            _lspSessions[tab] = session;
+            await session.StartAsync();
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            NotifyAction($"LSP server failed to start: {ex.Message}");
+        }
+        catch (InvalidOperationException ex)
+        {
+            NotifyAction($"LSP server failed to start: {ex.Message}");
+        }
+    }
+
+    private void OnLspDiagnostics(object? sender, IReadOnlyList<Lsp.EditorLspDiagnostic> diags)
+    {
+        if (diags.Count == 0)
+        {
+            NotifyAction("LSP: no diagnostics");
+            return;
+        }
+        var first = diags[0];
+        var more = diags.Count > 1 ? $" (+{diags.Count - 1} more)" : "";
+        NotifyAction($"LSP: {first.Message} [{first.Line + 1}:{first.Column + 1}]{more}");
+    }
+
+    /// <summary>
+    /// Swaps the central pane's content based on the active document's kind.
+    /// XML docs get <see cref="NodeListView"/>; text docs get <c>TextEditorView</c>;
+    /// XML-only UI (find bar, XPath bar, breadcrumb) is visibility-gated.
+    /// </summary>
+    private void SwapCentralPane(Phoenixml.Platform.Documents.Document? doc)
+    {
+        switch (doc)
+        {
+            case XmlDocument:
+                _centralPane.Content = _nodeList;
+                _breadcrumb.IsVisible = true;
+                // find/xpath bars retain their own toggled visibility state
+                break;
+            case Phoenixml.Platform.Editor.Text.TextDocument text:
+                _centralPane.Content = _textEditor;
+                _textEditor.Bind(text);
+                _findBar.IsVisible = false;
+                _xpathBar.IsVisible = false;
+                _breadcrumb.IsVisible = false;
+                break;
+            default:
+                _centralPane.Content = _nodeList;
+                break;
+        }
     }
 
     /// <summary>
@@ -690,8 +774,18 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
     {
         try
         {
-            var doc = await Phoenixml.Platform.Editor.Xml.XmlDocument
-                .LoadAsync(path, CancellationToken.None);
+            var ext = System.IO.Path.GetExtension(path).ToLowerInvariant();
+            Phoenixml.Platform.Documents.Document doc;
+            if (ext is ".xq" or ".xqy" or ".xquery" or ".xqm" or ".xsl" or ".xslt")
+            {
+                doc = await Phoenixml.Platform.Editor.Text.TextDocument
+                    .LoadAsync(path, CancellationToken.None);
+            }
+            else
+            {
+                doc = await Phoenixml.Platform.Editor.Xml.XmlDocument
+                    .LoadAsync(path, CancellationToken.None);
+            }
             _state.OpenDocument(doc);
             Settings.RecordRecentFile(path);
         }
@@ -810,7 +904,7 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
     /// </summary>
     internal EditorValidationService Validation => _validation;
 
-    private void OnActiveDocumentChanged(XmlDocument? doc)
+    private void OnActiveDocumentChanged(Phoenixml.Platform.Documents.Document? doc)
     {
         // Unsubscribe from any previously active document.
         if (_subscribedDocument is not null)
@@ -830,14 +924,19 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
             return;
         }
 
-        // Attach the diagnostic index to the new provider so XmlTreeNode.IconKey
-        // can reflect the latest validation state.
-        doc.TreeNodes.DiagnosticIndex = _diagIndex;
-        // Attach the match index so XmlTreeNode.MatchHighlight reflects find results.
-        doc.TreeNodes.MatchIndex = _matchIndex;
-        // Plan 25 #3: bind the schema set so row tooltips can pull xs:annotation text.
-        doc.TreeNodes.SchemaSet = new SchemaResolver(Settings, _schemaCache).Resolve(doc);
-        _nodeList.SetProvider(doc.TreeNodes);
+        // XML-specific wiring: tree provider + diagnostic/match indexes + schema set.
+        // Non-XML docs (TextDocument) skip this branch; their view is wired in SwapCentralPane.
+        if (doc is XmlDocument xdoc)
+        {
+            xdoc.TreeNodes.DiagnosticIndex = _diagIndex;
+            xdoc.TreeNodes.MatchIndex = _matchIndex;
+            xdoc.TreeNodes.SchemaSet = new SchemaResolver(Settings, _schemaCache).Resolve(xdoc);
+            _nodeList.SetProvider(xdoc.TreeNodes);
+        }
+        else
+        {
+            _nodeList.SetProvider(null);
+        }
 
         _window.SetTitle($"Phoenixml Editor — {doc.DisplayName}");
         UpdateStatusBar();
@@ -1226,11 +1325,11 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
     // -------------------------------------------------------------------------
 
     /// <inheritdoc/>
-    XmlDocument? IFindHost.ActiveDocument => _state.ActiveDocument;
+    XmlDocument? IFindHost.ActiveDocument => _state.ActiveDocument as XmlDocument;
 
     /// <inheritdoc/>
     XmlTreeNodeProvider? IFindHost.ActiveProvider =>
-        _state.ActiveDocument?.TreeNodes as XmlTreeNodeProvider;
+        (_state.ActiveDocument as XmlDocument)?.TreeNodes as XmlTreeNodeProvider;
 
     /// <inheritdoc/>
     void IFindHost.EnsureVisibleAndSelect(string nodeId) =>
@@ -1248,11 +1347,11 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
     // -------------------------------------------------------------------------
 
     /// <inheritdoc/>
-    XmlDocument? IXPathQueryHost.ActiveDocument => _state.ActiveDocument;
+    XmlDocument? IXPathQueryHost.ActiveDocument => _state.ActiveDocument as XmlDocument;
 
     /// <inheritdoc/>
     XmlTreeNodeProvider? IXPathQueryHost.ActiveProvider =>
-        _state.ActiveDocument?.TreeNodes as XmlTreeNodeProvider;
+        (_state.ActiveDocument as XmlDocument)?.TreeNodes as XmlTreeNodeProvider;
 
     /// <inheritdoc/>
     void IXPathQueryHost.EnsureVisibleAndSelect(string nodeId) =>

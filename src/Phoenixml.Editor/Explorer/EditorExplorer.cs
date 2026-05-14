@@ -184,7 +184,7 @@ internal sealed class EditorExplorer : DockPanel
 
     private string? _currentRoot;
 
-    private void OnActiveDocumentChanged(XmlDocument? doc)
+    private void OnActiveDocumentChanged(Phoenixml.Platform.Documents.Document? doc)
     {
         if (doc?.Source?.LocalPath is not string path) return;
         var folder = Path.GetDirectoryName(path);

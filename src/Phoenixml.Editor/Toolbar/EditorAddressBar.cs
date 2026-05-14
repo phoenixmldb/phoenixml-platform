@@ -36,7 +36,7 @@ internal sealed class EditorAddressBar : Border
         OnActiveDocumentChanged(window.State.ActiveDocument);
     }
 
-    private void OnActiveDocumentChanged(XmlDocument? doc)
+    private void OnActiveDocumentChanged(Phoenixml.Platform.Documents.Document? doc)
     {
         if (doc?.Source is null)
         {

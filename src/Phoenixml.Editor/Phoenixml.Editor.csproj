@@ -17,7 +17,7 @@
          live for the application lifetime — disposal on process exit is correct behaviour
          for a desktop app. Making App or EditorMainWindow implement IDisposable cascades
          through Avalonia's sealed type hierarchy without benefit. -->
-    <NoWarn>$(NoWarn);CA1515;NU1903;CA2007;CA1001;CA2000;CA1054;CA1056;CA1819</NoWarn>
+    <NoWarn>$(NoWarn);CA1515;NU1903;CA2007;CA1001;CA2000;CA1054;CA1056;CA1819;CA1308</NoWarn>
     <NuGetAuditSuppress>https://github.com/advisories/GHSA-xrw6-gwf8-vvr9</NuGetAuditSuppress>
   </PropertyGroup>
   <ItemGroup>
@@ -27,6 +27,7 @@
     <PackageReference Include="Avalonia.Diagnostics" Condition="'$(Configuration)' == 'Debug'" />
     <PackageReference Include="Material.Icons.Avalonia" />
     <PackageReference Include="StreamJsonRpc" />
+    <PackageReference Include="Avalonia.AvaloniaEdit" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Phoenixml.Platform/Phoenixml.Platform.csproj" />

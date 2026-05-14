@@ -83,11 +83,7 @@ public sealed class XmlDocument : Document
         MarkClean();
     }
 
-    /// <summary>
-    /// Resets dirty state without persisting. Use when the editor is discarding changes
-    /// (e.g. Discard All on quit) so the subsequent close does not re-prompt.
-    /// </summary>
-    public new void MarkClean() => base.MarkClean();
+    // Document.MarkClean is now public — no shadow needed.
 
     /// <summary>Saves the document to a different location and updates the Source URI.</summary>
     /// <param name="target">Target file URI.</param>

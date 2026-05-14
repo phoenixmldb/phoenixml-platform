@@ -14,8 +14,8 @@ internal static class SaveAsFileCommand
     {
         ArgumentNullException.ThrowIfNull(window);
 
-        var doc = window.State.ActiveDocument;
-        if (doc is null) return;
+        // MVP Save-As only supports XmlDocument; text-doc save-as is Plan 27.
+        if (window.State.ActiveDocument is not Phoenixml.Platform.Editor.Xml.XmlDocument doc) return;
 
         var topLevel = TopLevel.GetTopLevel(window.Window);
         if (topLevel is null) return;

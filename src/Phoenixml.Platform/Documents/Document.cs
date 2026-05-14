@@ -80,7 +80,7 @@ public abstract class Document : IDocument
     }
 
     /// <summary>Resets dirty state after a successful save.</summary>
-    protected void MarkClean()
+    public void MarkClean()
     {
         IsDirty = false;
         Changed?.Invoke(new DocumentChange(Id, "Saved", DocumentChangeKind.Saved, DateTimeOffset.UtcNow));

@@ -121,7 +121,7 @@ public class EditorStateTabsTests
         var tabA = state.OpenDocument(docA);
         state.OpenDocument(docB);
 
-        XmlDocument? fired = null;
+        Phoenixml.Platform.Documents.Document? fired = null;
         state.ActiveDocumentChanged += d => fired = d;
 
         state.ActiveTab = tabA;
@@ -153,7 +153,7 @@ public class EditorStateTabsTests
         state.OpenDocument(docB);
         // docB's tab is active (last opened)
 
-        XmlDocument? fired = null;
+        Phoenixml.Platform.Documents.Document? fired = null;
         state.ActiveDocumentChanged += d => fired = d;
 
         state.ReplaceDocument(docB, docFresh);
@@ -173,7 +173,7 @@ public class EditorStateTabsTests
         // Activate A so B is inactive
         state.ActiveTab = tabA;
 
-        XmlDocument? fired = null;
+        Phoenixml.Platform.Documents.Document? fired = null;
         state.ActiveDocumentChanged += d => fired = d;
 
         state.ReplaceDocument(docB, docFresh);
@@ -190,7 +190,7 @@ public class EditorStateTabsTests
         var docFresh = MakeDoc("fresh.xml");
         state.OpenDocument(docA);
 
-        XmlDocument? fired = null;
+        Phoenixml.Platform.Documents.Document? fired = null;
         state.ActiveDocumentChanged += d => fired = d;
 
         // docUnrelated is not in any tab — should be a no-op

@@ -2,30 +2,41 @@ using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Phoenixml.Platform.Abstractions.Documents;
+using Phoenixml.Platform.Documents;
 using Phoenixml.Platform.Editor.Xml;
 
 namespace Phoenixml.Editor.ViewModels;
 
 /// <summary>
-/// One open document in the editor. Owns the <see cref="XmlDocument"/> and exposes
-/// the title rendered on its tab header. Title updates fire <see cref="PropertyChanged"/>
-/// so the tab strip re-renders without manual refresh.
+/// One open document in the editor. Owns a <see cref="Document"/> (XML, text, etc.)
+/// and exposes the title rendered on its tab header. Title updates fire
+/// <see cref="PropertyChanged"/> so the tab strip re-renders without manual refresh.
 /// </summary>
 internal sealed class DocumentTab : INotifyPropertyChanged
 {
     /// <summary>The document this tab wraps.</summary>
-    public XmlDocument Document { get; private set; }
+    public Document Document { get; private set; }
 
     /// <summary>
     /// Initializes a new <see cref="DocumentTab"/> for <paramref name="document"/>.
     /// Subscribes to the document's <c>Changed</c> event so <see cref="Title"/> fires
     /// <see cref="PropertyChanged"/> whenever dirty state or display name changes.
     /// </summary>
-    public DocumentTab(XmlDocument document)
+    public DocumentTab(Document document)
     {
         ArgumentNullException.ThrowIfNull(document);
         Document = document;
         Document.Changed += OnDocumentChanged;
+    }
+
+    /// <summary>
+    /// Convenience: returns the document as <see cref="XmlDocument"/> when applicable.
+    /// Most XML-only code paths use this to type-narrow.
+    /// </summary>
+    public bool TryGetXml(out XmlDocument? xml)
+    {
+        xml = Document as XmlDocument;
+        return xml is not null;
     }
 
     /// <summary>
@@ -34,8 +45,7 @@ internal sealed class DocumentTab : INotifyPropertyChanged
     /// <see cref="Title"/> so any UI binding (e.g. a future tab strip) re-renders.
     /// No-op when <paramref name="fresh"/> is the same reference as the current document.
     /// </summary>
-    /// <param name="fresh">The replacement document. Must not be <see langword="null"/>.</param>
-    public void ReplaceDocument(XmlDocument fresh)
+    public void ReplaceDocument(Document fresh)
     {
         ArgumentNullException.ThrowIfNull(fresh);
         if (ReferenceEquals(Document, fresh)) return;
