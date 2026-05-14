@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Phoenixml.Platform.Editor.Text</RootNamespace>
+    <Description>Text-buffer vocabulary for Phoenixml.Platform — plain-text IDocument implementation for non-XML files (.xq, .xsl, etc.).</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Phoenixml.Platform/Phoenixml.Platform.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Phoenixml.Platform.Editor.Text.Tests" />
+    <InternalsVisibleTo Include="Phoenixml.Editor" />
+  </ItemGroup>
+</Project>

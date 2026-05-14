@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Phoenixml.Platform/Phoenixml.Platform.csproj" />
     <Project Path="src/Phoenixml.Platform.Editor.Xml/Phoenixml.Platform.Editor.Xml.csproj" />
+    <Project Path="src/Phoenixml.Platform.Editor.Text/Phoenixml.Platform.Editor.Text.csproj" />
     <Project Path="src/Phoenixml.Editor/Phoenixml.Editor.csproj" />
   </Folder>
   <Folder Name="/spike/">
@@ -12,5 +13,6 @@
     <Project Path="test/Phoenixml.Editor.Tests/Phoenixml.Editor.Tests.csproj" />
     <Project Path="test/Phoenixml.Platform.ArchTests/Phoenixml.Platform.ArchTests.csproj" />
     <Project Path="test/Phoenixml.Platform.Editor.Xml.Tests/Phoenixml.Platform.Editor.Xml.Tests.csproj" />
+    <Project Path="test/Phoenixml.Platform.Editor.Text.Tests/Phoenixml.Platform.Editor.Text.Tests.csproj" />
   </Folder>
 </Solution>

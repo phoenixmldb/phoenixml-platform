@@ -67,7 +67,13 @@ public abstract class Document : IDocument
     public virtual ValueTask<bool> CanCloseAsync(CancellationToken ct) => ValueTask.FromResult(true);
 
     /// <summary>Raises <see cref="Changed"/>. Called from the undo stack after Apply/Revert.</summary>
-    internal void RaiseChange(string description, DocumentChangeKind kind)
+    /// <remarks>
+    /// Protected so vocabulary types in sibling assemblies (e.g. <c>TextDocument</c>) can
+    /// fire change notifications when their edit path doesn't go through the undo stack.
+    /// </remarks>
+#pragma warning disable CA1030 // CA1030 suggests events; existing UndoStack-driven design uses a direct invoke pattern
+    protected internal void RaiseChange(string description, DocumentChangeKind kind)
+#pragma warning restore CA1030
     {
         IsDirty = true;
         Changed?.Invoke(new DocumentChange(Id, description, kind, DateTimeOffset.UtcNow));
