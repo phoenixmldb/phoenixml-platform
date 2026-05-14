@@ -31,8 +31,14 @@ public sealed class LspServerProcess : IDisposable
             },
             EnableRaisingEvents = true,
         };
+        _proc.Exited += (_, _) => Exited?.Invoke(this, EventArgs.Empty);
         _proc.Start();
     }
+
+#pragma warning disable CA1003
+    /// <summary>Raised when the child process exits (intentional or otherwise).</summary>
+    public event EventHandler? Exited;
+#pragma warning restore CA1003
 
     /// <summary>The child process's stdin stream — writes here are sent to the server.</summary>
     public Stream StandardInput => _proc.StandardInput.BaseStream;

@@ -151,7 +151,7 @@ public class XmlSchemaValidatorTests
             {
                 var loc = d.Location!;
                 // NodeId must resolve to a real node in the document.
-                var node = doc.Resolve(loc.NodeId);
+                var node = doc.Resolve(loc.NodeId!.Value);
                 Assert.NotNull(node);
                 // The resolved node must be an element (push approach attaches to elements).
                 Assert.True(node is XdmElement, $"Expected XdmElement but got {node.GetType().Name}");
@@ -236,7 +236,7 @@ public class XmlSchemaValidatorTests
             foreach (var d in errors)
             {
                 Assert.NotNull(d.Location);
-                var node = doc.Resolve(d.Location!.NodeId);
+                var node = doc.Resolve(d.Location!.NodeId!.Value);
                 Assert.NotNull(node);
             }
 
@@ -245,7 +245,7 @@ public class XmlSchemaValidatorTests
             var isbnError = errors.FirstOrDefault(d =>
                 d.Message.Contains("isbn", StringComparison.OrdinalIgnoreCase));
             Assert.NotNull(isbnError);
-            var isbnNode = doc.Resolve(isbnError!.Location!.NodeId) as XdmElement;
+            var isbnNode = doc.Resolve(isbnError!.Location!.NodeId!.Value) as XdmElement;
             Assert.NotNull(isbnNode);
             Assert.Equal("book", isbnNode!.LocalName);
             // The second <book> must be on a DIFFERENT line from the first <book>.
@@ -258,7 +258,7 @@ public class XmlSchemaValidatorTests
                 d.Message.Contains("gYear", StringComparison.OrdinalIgnoreCase)
                 || d.Message.Contains("not-a-year", StringComparison.OrdinalIgnoreCase));
             Assert.NotNull(yearError);
-            var yearNode = doc.Resolve(yearError!.Location!.NodeId) as XdmElement;
+            var yearNode = doc.Resolve(yearError!.Location!.NodeId!.Value) as XdmElement;
             Assert.NotNull(yearNode);
             Assert.Equal("year", yearNode!.LocalName);
             // The invalid <year> must be on the SAME line as the second <book> or later,

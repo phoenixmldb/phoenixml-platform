@@ -47,6 +47,7 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
     private ContentControl _centralPane = null!;
     private readonly Lsp.LspServerRegistry _lspRegistry = new(AppContext.BaseDirectory);
     private readonly Dictionary<ViewModels.DocumentTab, Lsp.LspSession> _lspSessions = new();
+    private ProblemsView? _problemsView;
     private readonly EditorValidationService _validation;
     private readonly DiagnosticIndex _diagIndex = new();
     private readonly MatchIndex _matchIndex = new();
@@ -487,6 +488,7 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
 
         // Build the ProblemsView and dock it at the bottom (120 dip).
         var problems = new ProblemsView();
+        _problemsView = problems;
         var problemsContainer = new DockPanel { Height = 120 };
         DockPanel.SetDock(problemsContainer, Dock.Bottom);
         problemsContainer.Children.Add(problems);
@@ -513,10 +515,24 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
         {
             if (diag.Location is DiagnosticLocation loc)
             {
-                // Use EnsureVisibleAndSelect so collapsed ancestors expand on the way to the
-                // offending node — diagnostics often target nodes deep inside a folded tree.
-                _nodeList.EnsureVisibleAndSelect(loc.NodeId.ToString());
-                return;
+                if (loc.NodeId is { } nodeId)
+                {
+                    // XML diagnostic — expand ancestors + select the offending node.
+                    _nodeList.EnsureVisibleAndSelect(nodeId.ToString());
+                    return;
+                }
+                if (loc.Uri is { } uri)
+                {
+                    // Text-doc diagnostic (LSP). Plan 27 #2: switch tabs + move caret.
+                    var tab = _state.Tabs.FirstOrDefault(t =>
+                        string.Equals(t.Document.Source?.AbsoluteUri, uri, StringComparison.Ordinal));
+                    if (tab is not null)
+                    {
+                        _state.ActiveTab = tab;
+                        // TextEditorView.MoveCaretTo wired in a later task; for now scroll-only is OK.
+                    }
+                    return;
+                }
             }
 
             if (_state.ActiveDocument is not XmlDocument doc) return;
@@ -542,12 +558,25 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
         _window.KeyBindings.Add(new KeyBinding
         {
             Gesture = new KeyGesture(Key.Z, KeyModifiers.Control),
-            Command = new RelayCommand(() => UndoCommand.Execute(this)),
+            Command = new RelayCommand(() =>
+            {
+                // Plan 27 #7: text docs route to AvaloniaEdit's internal undo stack.
+                if (_state.ActiveDocument is Phoenixml.Platform.Editor.Text.TextDocument)
+                    _textEditor.Undo();
+                else
+                    UndoCommand.Execute(this);
+            }),
         });
         _window.KeyBindings.Add(new KeyBinding
         {
             Gesture = new KeyGesture(Key.Y, KeyModifiers.Control),
-            Command = new RelayCommand(() => RedoCommand.Execute(this)),
+            Command = new RelayCommand(() =>
+            {
+                if (_state.ActiveDocument is Phoenixml.Platform.Editor.Text.TextDocument)
+                    _textEditor.Redo();
+                else
+                    RedoCommand.Execute(this);
+            }),
         });
         _window.KeyBindings.Add(new KeyBinding
         {
@@ -708,6 +737,14 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
             var process = new Lsp.LspServerProcess(path);
             var session = Lsp.LspSession.FromProcess(doc, process);
             session.DiagnosticsArrived += OnLspDiagnostics;
+            session.RawDiagnosticsArrived += OnLspRawDiagnostics;
+            // Plan 27 #7: surface unexpected server exits. Full restart-with-backoff
+            // is a Plan 28 candidate; for now we just notify so the user can act.
+            process.Exited += (_, _) =>
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    NotifyAction($"LSP server exited unexpectedly ({doc.Kind}) — close + reopen tab to restart"));
+            };
             _lspSessions[tab] = session;
             await session.StartAsync();
         }
@@ -723,14 +760,22 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
 
     private void OnLspDiagnostics(object? sender, IReadOnlyList<Lsp.EditorLspDiagnostic> diags)
     {
+        // Status-segment summary alongside the ProblemsView routing. Keep this terse
+        // so the user notices state changes; richer per-message rendering lives in Problems.
         if (diags.Count == 0)
         {
-            NotifyAction("LSP: no diagnostics");
+            NotifyAction("LSP: clean");
             return;
         }
-        var first = diags[0];
-        var more = diags.Count > 1 ? $" (+{diags.Count - 1} more)" : "";
-        NotifyAction($"LSP: {first.Message} [{first.Line + 1}:{first.Column + 1}]{more}");
+        NotifyAction($"LSP: {diags.Count} diagnostic(s)");
+    }
+
+    private void OnLspRawDiagnostics(object? sender, Lsp.LspPublishDiagnosticsParams p)
+    {
+        // Plan 27 #2: feed the raw LSP payload through the bridge → ProblemsView.
+        var converted = Lsp.LspProblemsBridge.Convert(p);
+        _diagIndex.Reset(converted);
+        _problemsView?.SetDiagnostics(converted);
     }
 
     /// <summary>
@@ -749,7 +794,13 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
                 break;
             case Phoenixml.Platform.Editor.Text.TextDocument text:
                 _centralPane.Content = _textEditor;
-                _textEditor.Bind(text);
+                // Hand the matching tab's LSP session to the view so popups can call it.
+                Lsp.LspSession? session = null;
+                foreach (var pair in _lspSessions)
+                {
+                    if (ReferenceEquals(pair.Key.Document, text)) { session = pair.Value; break; }
+                }
+                _textEditor.Bind(text, session);
                 _findBar.IsVisible = false;
                 _xpathBar.IsVisible = false;
                 _breadcrumb.IsVisible = false;

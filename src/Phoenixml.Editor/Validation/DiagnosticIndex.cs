@@ -28,8 +28,10 @@ internal sealed class DiagnosticIndex : IDiagnosticIndex
         foreach (var d in diags)
         {
             if (d.Location is not DiagnosticLocation loc) continue;
-            if (!fresh.TryGetValue(loc.NodeId, out var current) || d.Severity > current)
-                fresh[loc.NodeId] = d.Severity;
+            // Skip text-only diagnostics — they have no NodeId to key by.
+            if (loc.NodeId is not { } nodeId) continue;
+            if (!fresh.TryGetValue(nodeId, out var current) || d.Severity > current)
+                fresh[nodeId] = d.Severity;
         }
         _byNode = fresh;
     }

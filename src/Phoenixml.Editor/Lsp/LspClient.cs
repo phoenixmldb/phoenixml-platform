@@ -69,6 +69,20 @@ public sealed class LspClient : IAsyncDisposable
         return _rpc.NotifyAsync("textDocument/didChange", p);
     }
 
+    /// <summary>Requests completion items at <paramref name="line"/>/<paramref name="character"/>.</summary>
+    public Task<LspCompletionList?> RequestCompletionAsync(string uri, int line, int character) =>
+        _rpc.InvokeAsync<LspCompletionList?>("textDocument/completion",
+            new LspTextDocumentPositionParams(
+                new LspTextDocumentIdentifier(uri),
+                new LspPosition(line, character)));
+
+    /// <summary>Requests hover info at <paramref name="line"/>/<paramref name="character"/>.</summary>
+    public Task<LspHover?> RequestHoverAsync(string uri, int line, int character) =>
+        _rpc.InvokeAsync<LspHover?>("textDocument/hover",
+            new LspTextDocumentPositionParams(
+                new LspTextDocumentIdentifier(uri),
+                new LspPosition(line, character)));
+
     /// <inheritdoc/>
     public ValueTask DisposeAsync()
     {

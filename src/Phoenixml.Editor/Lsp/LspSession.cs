@@ -55,6 +55,13 @@ public sealed class LspSession : IAsyncDisposable
 #pragma warning disable CA1003
     /// <summary>Raised when the server publishes diagnostics for this document.</summary>
     public event EventHandler<IReadOnlyList<EditorLspDiagnostic>>? DiagnosticsArrived;
+
+    /// <summary>
+    /// Raised alongside <see cref="DiagnosticsArrived"/> with the raw LSP payload —
+    /// used by callers (e.g. <c>EditorMainWindow</c>) that convert to
+    /// <see cref="Phoenixml.Platform.Abstractions.Editing.IDiagnostic"/> for ProblemsView.
+    /// </summary>
+    public event EventHandler<LspPublishDiagnosticsParams>? RawDiagnosticsArrived;
 #pragma warning restore CA1003
 
     /// <summary>Performs the LSP handshake + opens the document on the server.</summary>
@@ -77,8 +84,36 @@ public sealed class LspSession : IAsyncDisposable
     private void OnDiagnostics(object? sender, LspPublishDiagnosticsParams p)
     {
         if (_disposed) return;
+        RawDiagnosticsArrived?.Invoke(this, p);
         var converted = LspDiagnosticBridge.Convert(p);
         DiagnosticsArrived?.Invoke(this, converted);
+    }
+
+    /// <summary>Requests completion labels at the given LSP-0-based position.</summary>
+    public async Task<IReadOnlyList<string>> RequestCompletionAsync(int line, int character)
+    {
+        var uri = _doc.Source?.AbsoluteUri ?? $"untitled:{_doc.Id}";
+        try
+        {
+            var list = await _client.RequestCompletionAsync(uri, line, character).ConfigureAwait(false);
+            if (list is null) return Array.Empty<string>();
+            var labels = new string[list.Items.Length];
+            for (int i = 0; i < list.Items.Length; i++) labels[i] = list.Items[i].Label;
+            return labels;
+        }
+        catch (StreamJsonRpc.RemoteRpcException) { return Array.Empty<string>(); }
+    }
+
+    /// <summary>Requests hover text at the given position. Null when no info.</summary>
+    public async Task<string?> RequestHoverAsync(int line, int character)
+    {
+        var uri = _doc.Source?.AbsoluteUri ?? $"untitled:{_doc.Id}";
+        try
+        {
+            var hover = await _client.RequestHoverAsync(uri, line, character).ConfigureAwait(false);
+            return hover?.Contents;
+        }
+        catch (StreamJsonRpc.RemoteRpcException) { return null; }
     }
 
     /// <inheritdoc/>

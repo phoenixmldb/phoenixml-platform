@@ -3,6 +3,7 @@
     <RootNamespace>Phoenixml.Platform</RootNamespace>
     <Description>Foundation library for the Phoenixml family of XML-aware tools — document model, undo/redo, editor primitives, account/license/update plumbing, theming, shell, hosting.</Description>
     <PackageTags>xml;phoenixml;editor;document-model;undo;avalonia</PackageTags>
+    <NoWarn>$(NoWarn);CA1054;CA1056</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia" />

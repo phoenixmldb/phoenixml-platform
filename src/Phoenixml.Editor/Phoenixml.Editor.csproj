@@ -35,8 +35,33 @@
     <ProjectReference Include="../Phoenixml.Platform.Editor.Text/Phoenixml.Platform.Editor.Text.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Views/SyntaxHighlighting/XQuery.xshd" />
+  </ItemGroup>
+  <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>Phoenixml.Editor.Tests</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
+
+  <!--
+    Plan 27 #8: auto-publish LSP servers into $(OutputPath)tools/ before each build.
+    Skipped when the sibling phoenixmldb-xquery / phoenixmldb-xslt repos aren't checked
+    out, or when the published binary already exists (incremental builds stay fast).
+    ContinueOnError keeps the editor build green even if the LSP publish fails.
+  -->
+  <Target Name="PublishLspServers" BeforeTargets="Build">
+    <PropertyGroup>
+      <_LspToolsDir>$(OutputPath)tools</_LspToolsDir>
+      <_XQueryLspSrc>$(MSBuildThisFileDirectory)../../../phoenixmldb/phoenixmldb-xquery/src/PhoenixmlDb.XQuery.LanguageServer</_XQueryLspSrc>
+      <_XsltLspSrc>$(MSBuildThisFileDirectory)../../../phoenixmldb/phoenixmldb-xslt/src/PhoenixmlDb.Xslt.LanguageServer</_XsltLspSrc>
+    </PropertyGroup>
+    <Exec
+      Condition="Exists('$(_XQueryLspSrc)') And !Exists('$(_LspToolsDir)/phoenixmldb-xquery-lsp')"
+      Command="dotnet publish &quot;$(_XQueryLspSrc)&quot; -c Release -o &quot;$(_LspToolsDir)&quot;"
+      ContinueOnError="true" />
+    <Exec
+      Condition="Exists('$(_XsltLspSrc)') And !Exists('$(_LspToolsDir)/phoenixmldb-xslt-lsp')"
+      Command="dotnet publish &quot;$(_XsltLspSrc)&quot; -c Release -o &quot;$(_LspToolsDir)&quot;"
+      ContinueOnError="true" />
+  </Target>
 </Project>

@@ -26,11 +26,19 @@ public interface IDiagnostic
 }
 
 /// <summary>
-/// Associates a diagnostic with a specific XDM node by its <see cref="NodeId"/>,
-/// plus the parse-time line and column from the serialized form that triggered
-/// the validation error.
+/// Associates a diagnostic with a position. For XML diagnostics, <see cref="NodeId"/>
+/// identifies the matching XDM node. For text-only diagnostics (LSP from XQuery/XSLT),
+/// <see cref="NodeId"/> is <see langword="null"/> and <see cref="Uri"/> +
+/// (<see cref="Line"/>, <see cref="Column"/>) identify the source position.
 /// </summary>
-/// <param name="NodeId">The XDM node id of the closest matching node.</param>
-/// <param name="Line">One-based line number in the serialized document.</param>
-/// <param name="Column">One-based column number in the serialized document.</param>
-public sealed record DiagnosticLocation(NodeId NodeId, int Line, int Column);
+/// <param name="NodeId">XDM node id, or null for text-only diagnostics.</param>
+/// <param name="Line">One-based line number.</param>
+/// <param name="Column">One-based column number.</param>
+/// <param name="Length">Span length for diagnostic squiggles (default 1).</param>
+/// <param name="Uri">Absolute document URI; used by ProblemsView grouping + click-to-navigate.</param>
+public sealed record DiagnosticLocation(
+    NodeId? NodeId,
+    int Line,
+    int Column,
+    int Length = 1,
+    string? Uri = null);

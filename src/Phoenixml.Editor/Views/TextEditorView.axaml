@@ -2,10 +2,35 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ae="https://github.com/avaloniaui/avaloniaedit"
              x:Class="Phoenixml.Editor.Views.TextEditorView">
-    <ae:TextEditor Name="Editor"
-                   FontFamily="Cascadia Mono, Consolas, monospace"
-                   FontSize="13"
-                   ShowLineNumbers="True"
-                   Background="#1E1E1E"
-                   Foreground="#D4D4D4" />
+    <Panel>
+        <ae:TextEditor Name="Editor"
+                       FontFamily="Cascadia Mono, Consolas, monospace"
+                       FontSize="13"
+                       ShowLineNumbers="True"
+                       Background="#1E1E1E"
+                       Foreground="#D4D4D4" />
+        <Popup Name="CompletionPopup"
+               PlacementTarget="{Binding ElementName=Editor}"
+               Placement="Pointer"
+               IsLightDismissEnabled="True">
+            <Border Background="#252526" BorderBrush="#4A4A4F" BorderThickness="1" Padding="4">
+                <ListBox Name="CompletionList"
+                         MaxHeight="240" Width="280"
+                         Background="Transparent"
+                         FontFamily="Cascadia Mono, Consolas, monospace" />
+            </Border>
+        </Popup>
+        <Popup Name="HoverPopup"
+               PlacementTarget="{Binding ElementName=Editor}"
+               Placement="Pointer"
+               IsHitTestVisible="False">
+            <Border Background="#252526" BorderBrush="#4A4A4F" BorderThickness="1" Padding="6,2"
+                    MaxWidth="500">
+                <TextBlock Name="HoverText"
+                           Foreground="#D4D4D4"
+                           TextWrapping="Wrap"
+                           FontFamily="Cascadia Mono, Consolas, monospace" />
+            </Border>
+        </Popup>
+    </Panel>
 </UserControl>

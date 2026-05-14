@@ -43,3 +43,21 @@ public sealed record LspDidChangeTextDocumentParams(
 public sealed record LspPublishDiagnosticsParams(
     [property: JsonPropertyName("uri")] string Uri,
     [property: JsonPropertyName("diagnostics")] LspDiagnostic[] Diagnostics);
+
+public sealed record LspTextDocumentIdentifier(
+    [property: JsonPropertyName("uri")] string Uri);
+
+public sealed record LspTextDocumentPositionParams(
+    [property: JsonPropertyName("textDocument")] LspTextDocumentIdentifier TextDocument,
+    [property: JsonPropertyName("position")] LspPosition Position);
+
+public sealed record LspCompletionItem(
+    [property: JsonPropertyName("label")] string Label,
+    [property: JsonPropertyName("kind")] int Kind);
+
+public sealed record LspCompletionList(
+    [property: JsonPropertyName("isIncomplete")] bool IsIncomplete,
+    [property: JsonPropertyName("items")] LspCompletionItem[] Items);
+
+public sealed record LspHover(
+    [property: JsonPropertyName("contents")] string? Contents);

@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<SyntaxDefinition name="XQuery"
+                  xmlns="http://icsharpcode.net/sharpdevelop/syntaxdefinition/2008">
+  <Color name="Comment"  foreground="#6A9955" />
+  <Color name="String"   foreground="#CE9178" />
+  <Color name="Keyword"  foreground="#569CD6" fontWeight="bold" />
+  <Color name="Function" foreground="#DCDCAA" />
+  <Color name="Number"   foreground="#B5CEA8" />
+  <Color name="Operator" foreground="#D4D4D4" />
+  <Color name="Variable" foreground="#9CDCFE" />
+
+  <RuleSet>
+    <Span color="Comment" multiline="true">
+      <Begin>\(:</Begin>
+      <End>:\)</End>
+    </Span>
+    <Span color="String"><Begin>"</Begin><End>"</End></Span>
+    <Span color="String"><Begin>'</Begin><End>'</End></Span>
+
+    <Keywords color="Keyword">
+      <Word>declare</Word><Word>function</Word><Word>variable</Word>
+      <Word>namespace</Word><Word>module</Word><Word>import</Word>
+      <Word>for</Word><Word>let</Word><Word>where</Word><Word>order</Word>
+      <Word>by</Word><Word>return</Word><Word>if</Word><Word>then</Word>
+      <Word>else</Word><Word>typeswitch</Word><Word>case</Word>
+      <Word>default</Word><Word>as</Word><Word>at</Word><Word>in</Word>
+      <Word>satisfies</Word><Word>some</Word><Word>every</Word>
+      <Word>and</Word><Word>or</Word><Word>not</Word><Word>to</Word>
+      <Word>div</Word><Word>idiv</Word><Word>mod</Word>
+      <Word>union</Word><Word>intersect</Word><Word>except</Word>
+      <Word>instance</Word><Word>of</Word><Word>cast</Word><Word>castable</Word>
+      <Word>treat</Word><Word>true</Word><Word>false</Word>
+      <Word>xquery</Word><Word>version</Word><Word>encoding</Word>
+      <Word>element</Word><Word>attribute</Word><Word>text</Word>
+      <Word>comment</Word><Word>document-node</Word><Word>processing-instruction</Word>
+      <Word>schema-element</Word><Word>schema-attribute</Word>
+    </Keywords>
+
+    <Rule color="Variable">\$[A-Za-z_][A-Za-z0-9_-]*</Rule>
+    <Rule color="Number">\b\d+(\.\d+)?\b</Rule>
+    <Rule color="Function">[A-Za-z_][A-Za-z0-9_-]*(?=\s*\()</Rule>
+    <Rule color="Operator">[+\-*/=&lt;&gt;!]+</Rule>
+  </RuleSet>
+</SyntaxDefinition>
