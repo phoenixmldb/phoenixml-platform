@@ -44,9 +44,11 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
     private readonly EditorState _state = new();
     private readonly NodeListView _nodeList;
     private readonly Views.TextEditorView _textEditor = new();
+    private readonly Views.OutlineView _outlineView = new();
     private ContentControl _centralPane = null!;
     private readonly Lsp.LspServerRegistry _lspRegistry = new(AppContext.BaseDirectory);
     private readonly Dictionary<ViewModels.DocumentTab, Lsp.LspSession> _lspSessions = new();
+    private readonly Dictionary<ViewModels.DocumentTab, int> _lspRestartAttempts = new();
     private ProblemsView? _problemsView;
     private readonly EditorValidationService _validation;
     private readonly DiagnosticIndex _diagIndex = new();
@@ -123,6 +125,11 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
         _xpathBar.PreviousRequested += _xpathController.OnPrevious;
         _xpathBar.CloseRequested += _xpathController.OnClose;
         _xpathBar.HistoryRequested += () => _xpathController.SnapshotHistory();
+
+        // Plan 28 #4: outline symbol selection moves the caret in the text view.
+        _outlineView.SymbolActivated += (_, sym) =>
+            _textEditor.MoveCaretTo(sym.Range.Start.Line, sym.Range.Start.Character);
+        _outlineView.IsVisible = false;
 
         // Context-aware completions: prefer schema-derived names when a schema is bound;
         // fall back to document-harvested names. Plan 25 #1.
@@ -460,6 +467,11 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
         rightColumn.Children.Add(_findBar);
         rightColumn.Children.Add(_xpathBar);
         rightColumn.Children.Add(_breadcrumb);
+        // Plan 28 #4: outline view docks right of the central pane (200dip). LastChildFill
+        // means the central pane fills the remaining space.
+        _outlineView.Width = 220;
+        DockPanel.SetDock(_outlineView, Dock.Right);
+        rightColumn.Children.Add(_outlineView);
         _centralPane = new ContentControl { Content = _nodeList };
         rightColumn.Children.Add(_centralPane);
 
@@ -738,12 +750,31 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
             var session = Lsp.LspSession.FromProcess(doc, process);
             session.DiagnosticsArrived += OnLspDiagnostics;
             session.RawDiagnosticsArrived += OnLspRawDiagnostics;
-            // Plan 27 #7: surface unexpected server exits. Full restart-with-backoff
-            // is a Plan 28 candidate; for now we just notify so the user can act.
+            // Plan 28 #9: auto-restart with exponential backoff (1s, 3s, 9s) up to 3 attempts.
+            // _lspRestartAttempts[tab] resets on successful didOpen via OnLspRawDiagnostics.
             process.Exited += (_, _) =>
             {
-                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                    NotifyAction($"LSP server exited unexpectedly ({doc.Kind}) — close + reopen tab to restart"));
+                Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+                {
+                    var attempts = _lspRestartAttempts.GetValueOrDefault(tab, 0);
+                    if (attempts >= 3)
+                    {
+                        NotifyAction($"LSP server ({doc.Kind}) failed 3 restart attempts — close + reopen tab to retry");
+                        return;
+                    }
+                    attempts++;
+                    _lspRestartAttempts[tab] = attempts;
+                    var delay = TimeSpan.FromSeconds(Math.Pow(3, attempts - 1));
+                    NotifyAction($"LSP ({doc.Kind}) exited — restart {attempts}/3 in {delay.TotalSeconds:0}s");
+                    await Task.Delay(delay);
+
+                    if (_lspSessions.TryGetValue(tab, out var staleSession))
+                    {
+                        await staleSession.DisposeAsync();
+                        _lspSessions.Remove(tab);
+                    }
+                    await StartLspSessionAsync(tab, doc);
+                });
             };
             _lspSessions[tab] = session;
             await session.StartAsync();
@@ -776,6 +807,33 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
         var converted = Lsp.LspProblemsBridge.Convert(p);
         _diagIndex.Reset(converted);
         _problemsView?.SetDiagnostics(converted);
+
+        // Plan 28 #4: refresh outline view after every server publish (cheap RPC).
+        if (sender is Lsp.LspSession session) _ = RefreshOutlineAsync(session);
+
+        // Plan 28 #9: a successful publish means the server initialized fine — reset
+        // restart attempts for the matching tab so a future crash gets the full retry budget.
+        if (sender is Lsp.LspSession s)
+        {
+            foreach (var pair in _lspSessions)
+            {
+                if (ReferenceEquals(pair.Value, s))
+                {
+                    _lspRestartAttempts.Remove(pair.Key);
+                    break;
+                }
+            }
+        }
+    }
+
+    private async Task RefreshOutlineAsync(Lsp.LspSession session)
+    {
+        try
+        {
+            var symbols = await session.RequestDocumentSymbolsAsync();
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => _outlineView.SetSymbols(symbols));
+        }
+        catch (InvalidOperationException) { /* session disposed mid-flight */ }
     }
 
     /// <summary>
@@ -790,6 +848,7 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
             case XmlDocument:
                 _centralPane.Content = _nodeList;
                 _breadcrumb.IsVisible = true;
+                _outlineView.IsVisible = false;
                 // find/xpath bars retain their own toggled visibility state
                 break;
             case Phoenixml.Platform.Editor.Text.TextDocument text:
@@ -804,6 +863,10 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
                 _findBar.IsVisible = false;
                 _xpathBar.IsVisible = false;
                 _breadcrumb.IsVisible = false;
+                _outlineView.IsVisible = true;
+                // Plan 28 #4: refresh outline. Initial fetch + on every Changed (debounced).
+                if (session is not null)
+                    _ = RefreshOutlineAsync(session);
                 break;
             default:
                 _centralPane.Content = _nodeList;

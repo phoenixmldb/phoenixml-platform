@@ -61,3 +61,26 @@ public sealed record LspCompletionList(
 
 public sealed record LspHover(
     [property: JsonPropertyName("contents")] string? Contents);
+
+// Plan 28 additions
+public sealed record LspDocumentSymbolParams(
+    [property: JsonPropertyName("textDocument")] LspTextDocumentIdentifier TextDocument);
+
+public sealed record LspDocumentSymbol(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("kind")] int Kind,
+    [property: JsonPropertyName("range")] LspRange Range,
+    [property: JsonPropertyName("selectionRange")] LspRange SelectionRange);
+
+public sealed record LspLocation(
+    [property: JsonPropertyName("uri")] string Uri,
+    [property: JsonPropertyName("range")] LspRange Range);
+
+public sealed record LspSignatureInformation(
+    [property: JsonPropertyName("label")] string Label,
+    [property: JsonPropertyName("documentation")] string? Documentation);
+
+public sealed record LspSignatureHelp(
+    [property: JsonPropertyName("signatures")] LspSignatureInformation[] Signatures,
+    [property: JsonPropertyName("activeSignature")] int ActiveSignature,
+    [property: JsonPropertyName("activeParameter")] int ActiveParameter);

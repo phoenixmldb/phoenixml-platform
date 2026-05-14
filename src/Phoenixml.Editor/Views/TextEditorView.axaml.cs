@@ -35,6 +35,8 @@ public sealed partial class TextEditorView : UserControl
         var editor = this.FindControl<TextEditor>("Editor")!;
         editor.AddHandler(KeyDownEvent, OnEditorKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         editor.TextArea.Caret.PositionChanged += OnCaretMoved;
+        // Plan 28 #8: enable AvaloniaEdit's built-in search panel (Ctrl+F).
+        AvaloniaEdit.Search.SearchPanel.Install(editor);
     }
 
     /// <summary>Binds the view to <paramref name="document"/>; optional <paramref name="session"/> drives LSP UX.</summary>
@@ -69,6 +71,20 @@ public sealed partial class TextEditorView : UserControl
     public void Undo() => this.FindControl<TextEditor>("Editor")?.Undo();
     /// <summary>Routes Ctrl+Y to the embedded editor's redo stack.</summary>
     public void Redo() => this.FindControl<TextEditor>("Editor")?.Redo();
+
+    /// <summary>Moves the caret to (line, column) (0-based) and scrolls into view.</summary>
+    public void MoveCaretTo(int line, int column)
+    {
+        var editor = this.FindControl<TextEditor>("Editor");
+        if (editor is null) return;
+        var lineNumber = Math.Max(1, line + 1);
+        if (lineNumber > editor.Document.LineCount) lineNumber = editor.Document.LineCount;
+        var docLine = editor.Document.GetLineByNumber(lineNumber);
+        var offset = docLine.Offset + Math.Min(column, docLine.Length);
+        editor.CaretOffset = offset;
+        editor.TextArea.Caret.BringCaretToView();
+        editor.Focus();
+    }
 
     private void OnEditorTextChanged(object? sender, EventArgs e)
     {
@@ -134,7 +150,50 @@ public sealed partial class TextEditorView : UserControl
         {
             await ShowCompletionAsync();
             e.Handled = true;
+            return;
         }
+
+        // Plan 28 #5: signatureHelp on `(`. Let the `(` insert first, then ask the server.
+        if (e.KeySymbol == "(")
+        {
+            await Task.Yield();
+            await ShowSignatureHelpAsync();
+            return;
+        }
+
+        // Plan 28 #6: F12 → go to definition.
+        if (e.Key == Key.F12)
+        {
+            await GoToDefinitionAsync();
+            e.Handled = true;
+        }
+    }
+
+    private async Task ShowSignatureHelpAsync()
+    {
+        if (_session is null) return;
+        var editor = this.FindControl<TextEditor>("Editor")!;
+        var caret = editor.TextArea.Caret;
+        var help = await _session.RequestSignatureHelpAsync(caret.Line - 1, caret.Column - 1);
+        var popup = this.FindControl<Popup>("SignatureHelpPopup")!;
+        var text = this.FindControl<TextBlock>("SignatureText")!;
+        if (help is null || help.Signatures.Length == 0)
+        {
+            popup.IsOpen = false;
+            return;
+        }
+        text.Text = help.Signatures[help.ActiveSignature].Label;
+        popup.IsOpen = true;
+    }
+
+    private async Task GoToDefinitionAsync()
+    {
+        if (_session is null) return;
+        var editor = this.FindControl<TextEditor>("Editor")!;
+        var caret = editor.TextArea.Caret;
+        var loc = await _session.RequestDefinitionAsync(caret.Line - 1, caret.Column - 1);
+        if (loc is null) return;
+        MoveCaretTo(loc.Range.Start.Line, loc.Range.Start.Character);
     }
 
     private async Task ShowCompletionAsync()

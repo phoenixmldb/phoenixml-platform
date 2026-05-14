@@ -1,0 +1,21 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Phoenixml.Editor.Views.OutlineView">
+    <Border Background="#1E1E1E" BorderBrush="#4A4A4F" BorderThickness="1,0,0,0">
+        <DockPanel LastChildFill="True">
+            <Border DockPanel.Dock="Top" Background="#252526" Padding="8,4">
+                <TextBlock Text="Outline" Foreground="#9D9D9D" FontWeight="Bold" />
+            </Border>
+            <ListBox Name="SymbolList"
+                     Background="Transparent"
+                     FontFamily="Cascadia Mono, Consolas, monospace"
+                     FontSize="12">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Name}" Foreground="#D4D4D4" />
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </DockPanel>
+    </Border>
+</UserControl>

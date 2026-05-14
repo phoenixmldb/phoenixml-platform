@@ -32,5 +32,16 @@
                            FontFamily="Cascadia Mono, Consolas, monospace" />
             </Border>
         </Popup>
+        <Popup Name="SignatureHelpPopup"
+               PlacementTarget="{Binding ElementName=Editor}"
+               Placement="Pointer"
+               IsHitTestVisible="False">
+            <Border Background="#252526" BorderBrush="#4A4A4F" BorderThickness="1" Padding="6,2"
+                    MaxWidth="600">
+                <TextBlock Name="SignatureText"
+                           Foreground="#9CDCFE"
+                           FontFamily="Cascadia Mono, Consolas, monospace" />
+            </Border>
+        </Popup>
     </Panel>
 </UserControl>

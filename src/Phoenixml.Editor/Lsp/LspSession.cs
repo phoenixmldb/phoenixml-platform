@@ -116,6 +116,40 @@ public sealed class LspSession : IAsyncDisposable
         catch (StreamJsonRpc.RemoteRpcException) { return null; }
     }
 
+    /// <summary>Requests the document's top-level symbols (Plan 28).</summary>
+    public async Task<IReadOnlyList<LspDocumentSymbol>> RequestDocumentSymbolsAsync()
+    {
+        var uri = _doc.Source?.AbsoluteUri ?? $"untitled:{_doc.Id}";
+        try
+        {
+            var symbols = await _client.RequestDocumentSymbolsAsync(uri).ConfigureAwait(false);
+            return symbols ?? Array.Empty<LspDocumentSymbol>();
+        }
+        catch (StreamJsonRpc.RemoteRpcException) { return Array.Empty<LspDocumentSymbol>(); }
+    }
+
+    /// <summary>Requests signature help at the given position (Plan 28).</summary>
+    public async Task<LspSignatureHelp?> RequestSignatureHelpAsync(int line, int character)
+    {
+        var uri = _doc.Source?.AbsoluteUri ?? $"untitled:{_doc.Id}";
+        try
+        {
+            return await _client.RequestSignatureHelpAsync(uri, line, character).ConfigureAwait(false);
+        }
+        catch (StreamJsonRpc.RemoteRpcException) { return null; }
+    }
+
+    /// <summary>Requests the definition location at the given position (Plan 28).</summary>
+    public async Task<LspLocation?> RequestDefinitionAsync(int line, int character)
+    {
+        var uri = _doc.Source?.AbsoluteUri ?? $"untitled:{_doc.Id}";
+        try
+        {
+            return await _client.RequestDefinitionAsync(uri, line, character).ConfigureAwait(false);
+        }
+        catch (StreamJsonRpc.RemoteRpcException) { return null; }
+    }
+
     /// <inheritdoc/>
     public async ValueTask DisposeAsync()
     {

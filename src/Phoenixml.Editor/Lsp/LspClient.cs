@@ -83,6 +83,25 @@ public sealed class LspClient : IAsyncDisposable
                 new LspTextDocumentIdentifier(uri),
                 new LspPosition(line, character)));
 
+    /// <summary>Requests the document's symbol list (Plan 28).</summary>
+    public Task<LspDocumentSymbol[]?> RequestDocumentSymbolsAsync(string uri) =>
+        _rpc.InvokeAsync<LspDocumentSymbol[]?>("textDocument/documentSymbol",
+            new LspDocumentSymbolParams(new LspTextDocumentIdentifier(uri)));
+
+    /// <summary>Requests signature info at the given position (Plan 28).</summary>
+    public Task<LspSignatureHelp?> RequestSignatureHelpAsync(string uri, int line, int character) =>
+        _rpc.InvokeAsync<LspSignatureHelp?>("textDocument/signatureHelp",
+            new LspTextDocumentPositionParams(
+                new LspTextDocumentIdentifier(uri),
+                new LspPosition(line, character)));
+
+    /// <summary>Requests the definition location for the symbol at the given position (Plan 28).</summary>
+    public Task<LspLocation?> RequestDefinitionAsync(string uri, int line, int character) =>
+        _rpc.InvokeAsync<LspLocation?>("textDocument/definition",
+            new LspTextDocumentPositionParams(
+                new LspTextDocumentIdentifier(uri),
+                new LspPosition(line, character)));
+
     /// <inheritdoc/>
     public ValueTask DisposeAsync()
     {
