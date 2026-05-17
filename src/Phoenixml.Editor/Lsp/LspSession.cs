@@ -150,6 +150,18 @@ public sealed class LspSession : IAsyncDisposable
         catch (StreamJsonRpc.RemoteRpcException) { return null; }
     }
 
+    /// <summary>Requests all references for the symbol at the given position (Plan 29).</summary>
+    public async Task<LspLocation[]> RequestReferencesAsync(int line, int character)
+    {
+        var uri = _doc.Source?.AbsoluteUri ?? $"untitled:{_doc.Id}";
+        try
+        {
+            var refs = await _client.RequestReferencesAsync(uri, line, character).ConfigureAwait(false);
+            return refs ?? Array.Empty<LspLocation>();
+        }
+        catch (StreamJsonRpc.RemoteRpcException) { return Array.Empty<LspLocation>(); }
+    }
+
     /// <inheritdoc/>
     public async ValueTask DisposeAsync()
     {

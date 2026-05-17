@@ -84,3 +84,11 @@ public sealed record LspSignatureHelp(
     [property: JsonPropertyName("signatures")] LspSignatureInformation[] Signatures,
     [property: JsonPropertyName("activeSignature")] int ActiveSignature,
     [property: JsonPropertyName("activeParameter")] int ActiveParameter);
+
+public sealed record LspReferenceContext(
+    [property: JsonPropertyName("includeDeclaration")] bool IncludeDeclaration);
+
+public sealed record LspReferenceParams(
+    [property: JsonPropertyName("textDocument")] LspTextDocumentIdentifier TextDocument,
+    [property: JsonPropertyName("position")] LspPosition Position,
+    [property: JsonPropertyName("context")] LspReferenceContext Context);

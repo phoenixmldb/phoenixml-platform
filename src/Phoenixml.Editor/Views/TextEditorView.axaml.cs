@@ -162,12 +162,34 @@ public sealed partial class TextEditorView : UserControl
         }
 
         // Plan 28 #6: F12 → go to definition.
-        if (e.Key == Key.F12)
+        if (e.Key == Key.F12 && (e.KeyModifiers & KeyModifiers.Shift) == 0)
         {
             await GoToDefinitionAsync();
             e.Handled = true;
+            return;
+        }
+
+        // Plan 29: Shift+F12 → find references.
+        if (e.Key == Key.F12 && (e.KeyModifiers & KeyModifiers.Shift) == KeyModifiers.Shift)
+        {
+            await FindReferencesAsync();
+            e.Handled = true;
         }
     }
+
+    private async Task FindReferencesAsync()
+    {
+        if (_session is null) return;
+        var editor = this.FindControl<TextEditor>("Editor")!;
+        var caret = editor.TextArea.Caret;
+        var refs = await _session.RequestReferencesAsync(caret.Line - 1, caret.Column - 1);
+        ReferencesRequested?.Invoke(this, refs);
+    }
+
+#pragma warning disable CA1003
+    /// <summary>Raised when the user invokes Find References (Shift+F12).</summary>
+    public event EventHandler<Lsp.LspLocation[]>? ReferencesRequested;
+#pragma warning restore CA1003
 
     private async Task ShowSignatureHelpAsync()
     {
@@ -183,6 +205,7 @@ public sealed partial class TextEditorView : UserControl
             return;
         }
         text.Text = help.Signatures[help.ActiveSignature].Label;
+        AnchorPopupAtCaret(popup);
         popup.IsOpen = true;
     }
 
@@ -208,6 +231,7 @@ public sealed partial class TextEditorView : UserControl
         var list = this.FindControl<ListBox>("CompletionList")!;
         list.ItemsSource = labels;
         list.SelectedIndex = 0;
+        AnchorPopupAtCaret(popup);
         popup.IsOpen = true;
     }
 
@@ -228,6 +252,31 @@ public sealed partial class TextEditorView : UserControl
 
     private static bool IsWordChar(char c) =>
         char.IsLetterOrDigit(c) || c == '-' || c == '_' || c == ':' || c == '$';
+
+    /// <summary>
+    /// Anchors a popup at the caret's pixel position within the editor (Plan 29 #7).
+    /// On failure (AvaloniaEdit API drift, no visual yet), falls back to Pointer placement
+    /// so popups never crash the UI.
+    /// </summary>
+    private void AnchorPopupAtCaret(Popup popup)
+    {
+        var editor = this.FindControl<TextEditor>("Editor")!;
+        try
+        {
+            var caret = editor.TextArea.Caret;
+            var textView = editor.TextArea.TextView;
+            var visual = textView.GetVisualPosition(
+                new AvaloniaEdit.TextViewPosition(caret.Line, caret.Column),
+                AvaloniaEdit.Rendering.VisualYPosition.LineBottom);
+            var docPoint = visual - textView.ScrollOffset;
+            popup.PlacementRect = new Avalonia.Rect(docPoint.X, docPoint.Y, 1, 1);
+            popup.HorizontalOffset = 0;
+            popup.VerticalOffset = 0;
+        }
+        catch (InvalidOperationException) { popup.Placement = PlacementMode.Pointer; }
+        catch (ArgumentException) { popup.Placement = PlacementMode.Pointer; }
+        catch (NullReferenceException) { popup.Placement = PlacementMode.Pointer; }
+    }
 
     // -------------------------------------------------------------------------
     // Hover popup (Plan 27 #5)
@@ -261,6 +310,7 @@ public sealed partial class TextEditorView : UserControl
                 return;
             }
             text.Text = content;
+            AnchorPopupAtCaret(popup);
             popup.IsOpen = true;
         }
         catch (OperationCanceledException) { }

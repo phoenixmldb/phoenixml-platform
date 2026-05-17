@@ -45,6 +45,7 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
     private readonly NodeListView _nodeList;
     private readonly Views.TextEditorView _textEditor = new();
     private readonly Views.OutlineView _outlineView = new();
+    private readonly Views.ReferencesView _referencesView = new();
     private ContentControl _centralPane = null!;
     private readonly Lsp.LspServerRegistry _lspRegistry = new(AppContext.BaseDirectory);
     private readonly Dictionary<ViewModels.DocumentTab, Lsp.LspSession> _lspSessions = new();
@@ -130,6 +131,18 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
         _outlineView.SymbolActivated += (_, sym) =>
             _textEditor.MoveCaretTo(sym.Range.Start.Line, sym.Range.Start.Character);
         _outlineView.IsVisible = false;
+
+        // Plan 29: references panel. Shares the right dock slot with the outline —
+        // Shift+F12 toggles in references, outline auto-restores when the panel is dismissed.
+        _referencesView.IsVisible = false;
+        _referencesView.ReferenceActivated += (_, loc) =>
+            _textEditor.MoveCaretTo(loc.Range.Start.Line, loc.Range.Start.Character);
+        _textEditor.ReferencesRequested += (_, refs) =>
+        {
+            _referencesView.SetReferences(refs);
+            _outlineView.IsVisible = false;
+            _referencesView.IsVisible = true;
+        };
 
         // Context-aware completions: prefer schema-derived names when a schema is bound;
         // fall back to document-harvested names. Plan 25 #1.
@@ -472,6 +485,9 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
         _outlineView.Width = 220;
         DockPanel.SetDock(_outlineView, Dock.Right);
         rightColumn.Children.Add(_outlineView);
+        _referencesView.Width = 220;
+        DockPanel.SetDock(_referencesView, Dock.Right);
+        rightColumn.Children.Add(_referencesView);
         _centralPane = new ContentControl { Content = _nodeList };
         rightColumn.Children.Add(_centralPane);
 
@@ -849,6 +865,7 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
                 _centralPane.Content = _nodeList;
                 _breadcrumb.IsVisible = true;
                 _outlineView.IsVisible = false;
+                _referencesView.IsVisible = false;
                 // find/xpath bars retain their own toggled visibility state
                 break;
             case Phoenixml.Platform.Editor.Text.TextDocument text:
@@ -864,6 +881,7 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
                 _xpathBar.IsVisible = false;
                 _breadcrumb.IsVisible = false;
                 _outlineView.IsVisible = true;
+                _referencesView.IsVisible = false;
                 // Plan 28 #4: refresh outline. Initial fetch + on every Changed (debounced).
                 if (session is not null)
                     _ = RefreshOutlineAsync(session);

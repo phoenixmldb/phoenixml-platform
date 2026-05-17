@@ -102,6 +102,14 @@ public sealed class LspClient : IAsyncDisposable
                 new LspTextDocumentIdentifier(uri),
                 new LspPosition(line, character)));
 
+    /// <summary>Requests all reference locations for the symbol at the given position (Plan 29).</summary>
+    public Task<LspLocation[]?> RequestReferencesAsync(string uri, int line, int character) =>
+        _rpc.InvokeAsync<LspLocation[]?>("textDocument/references",
+            new LspReferenceParams(
+                new LspTextDocumentIdentifier(uri),
+                new LspPosition(line, character),
+                new LspReferenceContext(IncludeDeclaration: true)));
+
     /// <inheritdoc/>
     public ValueTask DisposeAsync()
     {

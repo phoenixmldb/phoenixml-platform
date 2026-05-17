@@ -11,7 +11,9 @@
                        Foreground="#D4D4D4" />
         <Popup Name="CompletionPopup"
                PlacementTarget="{Binding ElementName=Editor}"
-               Placement="Pointer"
+               Placement="AnchorAndGravity"
+               PlacementAnchor="TopLeft"
+               PlacementGravity="BottomRight"
                IsLightDismissEnabled="True">
             <Border Background="#252526" BorderBrush="#4A4A4F" BorderThickness="1" Padding="4">
                 <ListBox Name="CompletionList"
@@ -22,7 +24,9 @@
         </Popup>
         <Popup Name="HoverPopup"
                PlacementTarget="{Binding ElementName=Editor}"
-               Placement="Pointer"
+               Placement="AnchorAndGravity"
+               PlacementAnchor="TopLeft"
+               PlacementGravity="BottomRight"
                IsHitTestVisible="False">
             <Border Background="#252526" BorderBrush="#4A4A4F" BorderThickness="1" Padding="6,2"
                     MaxWidth="500">
@@ -34,7 +38,9 @@
         </Popup>
         <Popup Name="SignatureHelpPopup"
                PlacementTarget="{Binding ElementName=Editor}"
-               Placement="Pointer"
+               Placement="AnchorAndGravity"
+               PlacementAnchor="TopLeft"
+               PlacementGravity="BottomRight"
                IsHitTestVisible="False">
             <Border Background="#252526" BorderBrush="#4A4A4F" BorderThickness="1" Padding="6,2"
                     MaxWidth="600">
