@@ -11,8 +11,9 @@ using Phoenixml.Editor.Menus;
 using Phoenixml.Editor.Quit;
 using Phoenixml.Editor.Settings;
 using Phoenixml.Editor.Validation;
-using Phoenixml.Editor.ViewModels;
+using Phoenixml.Workbench.ViewModels;
 using Lsp = Phoenixml.Workbench.Lsp;
+using ViewModels = Phoenixml.Workbench.ViewModels;
 using Phoenixml.Platform.Abstractions.Documents;
 using Phoenixml.Platform.Abstractions.Editing;
 using Phoenixml.Platform.Editor.Xml;
@@ -524,7 +525,7 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
 
         // Wire validation: track the active document and push diagnostics to the view
         // and to the DiagnosticIndex so tree rows can show inline error glyphs.
-        _state.ActiveDocumentChanged += doc => _validation.SetActiveDocument(doc as XmlDocument);
+        _state.ActiveDocumentChanged += (_, doc) => _validation.SetActiveDocument(doc as XmlDocument);
         _validation.DiagnosticsChanged += diags =>
         {
             _diagIndex.Reset(diags);
@@ -741,12 +742,12 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
         _state.ActiveDocumentChanged += SwapCentralPane;
 
         // Plan 26 #8: per-tab LSP sessions for text documents.
-        _state.TabAdded += tab =>
+        _state.TabAdded += (_, tab) =>
         {
             if (tab.Document is Phoenixml.Platform.Editor.Text.TextDocument text)
                 _ = StartLspSessionAsync(tab, text);
         };
-        _state.TabClosed += tab =>
+        _state.TabClosed += (_, tab) =>
         {
             if (_lspSessions.Remove(tab, out var session))
                 _ = session.DisposeAsync().AsTask();
@@ -858,7 +859,7 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
     /// XML docs get <see cref="NodeListView"/>; text docs get <c>TextEditorView</c>;
     /// XML-only UI (find bar, XPath bar, breadcrumb) is visibility-gated.
     /// </summary>
-    private void SwapCentralPane(Phoenixml.Platform.Documents.Document? doc)
+    private void SwapCentralPane(object? sender, Phoenixml.Platform.Documents.Document? doc)
     {
         switch (doc)
         {
@@ -1037,7 +1038,7 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
     /// </summary>
     internal EditorValidationService Validation => _validation;
 
-    private void OnActiveDocumentChanged(Phoenixml.Platform.Documents.Document? doc)
+    private void OnActiveDocumentChanged(object? sender, Phoenixml.Platform.Documents.Document? doc)
     {
         // Unsubscribe from any previously active document.
         if (_subscribedDocument is not null)

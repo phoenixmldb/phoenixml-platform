@@ -5,14 +5,14 @@ using Phoenixml.Platform.Abstractions.Documents;
 using Phoenixml.Platform.Documents;
 using Phoenixml.Platform.Editor.Xml;
 
-namespace Phoenixml.Editor.ViewModels;
+namespace Phoenixml.Workbench.ViewModels;
 
 /// <summary>
 /// One open document in the editor. Owns a <see cref="Document"/> (XML, text, etc.)
 /// and exposes the title rendered on its tab header. Title updates fire
 /// <see cref="PropertyChanged"/> so the tab strip re-renders without manual refresh.
 /// </summary>
-internal sealed class DocumentTab : INotifyPropertyChanged
+public sealed class DocumentTab : INotifyPropertyChanged
 {
     /// <summary>The document this tab wraps.</summary>
     public Document Document { get; private set; }

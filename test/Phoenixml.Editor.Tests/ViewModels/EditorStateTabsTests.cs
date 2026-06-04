@@ -1,5 +1,5 @@
 using System;
-using Phoenixml.Editor.ViewModels;
+using Phoenixml.Workbench.ViewModels;
 using Phoenixml.Platform.Editor.Xml;
 using Xunit;
 using PlatformDocumentId = Phoenixml.Platform.Abstractions.Documents.DocumentId;
@@ -122,7 +122,7 @@ public class EditorStateTabsTests
         state.OpenDocument(docB);
 
         Phoenixml.Platform.Documents.Document? fired = null;
-        state.ActiveDocumentChanged += d => fired = d;
+        state.ActiveDocumentChanged += (_, d) => fired = d;
 
         state.ActiveTab = tabA;
 
@@ -154,7 +154,7 @@ public class EditorStateTabsTests
         // docB's tab is active (last opened)
 
         Phoenixml.Platform.Documents.Document? fired = null;
-        state.ActiveDocumentChanged += d => fired = d;
+        state.ActiveDocumentChanged += (_, d) => fired = d;
 
         state.ReplaceDocument(docB, docFresh);
 
@@ -174,7 +174,7 @@ public class EditorStateTabsTests
         state.ActiveTab = tabA;
 
         Phoenixml.Platform.Documents.Document? fired = null;
-        state.ActiveDocumentChanged += d => fired = d;
+        state.ActiveDocumentChanged += (_, d) => fired = d;
 
         state.ReplaceDocument(docB, docFresh);
 
@@ -191,7 +191,7 @@ public class EditorStateTabsTests
         state.OpenDocument(docA);
 
         Phoenixml.Platform.Documents.Document? fired = null;
-        state.ActiveDocumentChanged += d => fired = d;
+        state.ActiveDocumentChanged += (_, d) => fired = d;
 
         // docUnrelated is not in any tab — should be a no-op
         state.ReplaceDocument(docUnrelated, docFresh);

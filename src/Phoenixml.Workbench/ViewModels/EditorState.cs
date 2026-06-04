@@ -3,7 +3,7 @@ using System.Collections.ObjectModel;
 using Phoenixml.Platform.Documents;
 using Phoenixml.Platform.Editor.Xml;
 
-namespace Phoenixml.Editor.ViewModels;
+namespace Phoenixml.Workbench.ViewModels;
 
 /// <summary>
 /// View-model state for the editor window. Holds an ordered list of open
@@ -14,7 +14,7 @@ namespace Phoenixml.Editor.ViewModels;
 /// XML-only consumers type-narrow with <c>is XmlDocument</c>.
 /// </para>
 /// </summary>
-internal sealed class EditorState
+public sealed class EditorState
 {
     private readonly ObservableCollection<DocumentTab> _tabs = new();
     private DocumentTab? _activeTab;
@@ -43,8 +43,8 @@ internal sealed class EditorState
             if (value is not null && !_tabs.Contains(value))
                 throw new ArgumentException("Tab is not in the open list.", nameof(value));
             _activeTab = value;
-            ActiveTabChanged?.Invoke(value);
-            ActiveDocumentChanged?.Invoke(value?.Document);
+            ActiveTabChanged?.Invoke(this, value);
+            ActiveDocumentChanged?.Invoke(this, value?.Document);
         }
     }
 
@@ -95,7 +95,7 @@ internal sealed class EditorState
 
         var newTab = new DocumentTab(document);
         _tabs.Add(newTab);
-        TabAdded?.Invoke(newTab);
+        TabAdded?.Invoke(this, newTab);
         ActiveTab = newTab;
         return newTab;
     }
@@ -114,7 +114,7 @@ internal sealed class EditorState
 
         var wasActive = ReferenceEquals(_activeTab, tab);
         _tabs.RemoveAt(idx);
-        TabClosed?.Invoke(tab);
+        TabClosed?.Invoke(this, tab);
 
         if (!wasActive) return;
 
@@ -128,14 +128,16 @@ internal sealed class EditorState
         ActiveTab = _tabs[nextIdx];
     }
 
+#pragma warning disable CA1003
     /// <summary>Raised after <see cref="ActiveTab"/> changes (including to null).</summary>
-    public event Action<DocumentTab?>? ActiveTabChanged;
+    public event EventHandler<DocumentTab?>? ActiveTabChanged;
 
     /// <summary>Raised after a tab is added via <see cref="OpenDocument"/>.</summary>
-    public event Action<DocumentTab>? TabAdded;
+    public event EventHandler<DocumentTab>? TabAdded;
 
     /// <summary>Raised after a tab is removed via <see cref="CloseTab"/>.</summary>
-    public event Action<DocumentTab>? TabClosed;
+    public event EventHandler<DocumentTab>? TabClosed;
+#pragma warning restore CA1003
 
     /// <summary>
     /// Swaps the document of the tab currently holding <paramref name="old"/> to
@@ -161,9 +163,11 @@ internal sealed class EditorState
         affected.ReplaceDocument(fresh);
 
         if (ReferenceEquals(_activeTab, affected))
-            ActiveDocumentChanged?.Invoke(fresh);
+            ActiveDocumentChanged?.Invoke(this, fresh);
     }
 
+#pragma warning disable CA1003
     /// <summary>Raised after <see cref="ActiveDocument"/> changes.</summary>
-    public event Action<Document?>? ActiveDocumentChanged;
+    public event EventHandler<Document?>? ActiveDocumentChanged;
+#pragma warning restore CA1003
 }

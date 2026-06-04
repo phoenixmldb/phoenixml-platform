@@ -33,10 +33,10 @@ internal sealed class EditorAddressBar : Border
         Child = _pathBox;
 
         window.State.ActiveDocumentChanged += OnActiveDocumentChanged;
-        OnActiveDocumentChanged(window.State.ActiveDocument);
+        OnActiveDocumentChanged(this, window.State.ActiveDocument);
     }
 
-    private void OnActiveDocumentChanged(Phoenixml.Platform.Documents.Document? doc)
+    private void OnActiveDocumentChanged(object? sender, Phoenixml.Platform.Documents.Document? doc)
     {
         if (doc?.Source is null)
         {
@@ -62,7 +62,7 @@ internal sealed class EditorAddressBar : Border
         }
         else if (e.Key == Key.Escape)
         {
-            OnActiveDocumentChanged(_window.State.ActiveDocument);
+            OnActiveDocumentChanged(this, _window.State.ActiveDocument);
             e.Handled = true;
         }
     }

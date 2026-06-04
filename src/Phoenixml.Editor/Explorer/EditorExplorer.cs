@@ -92,7 +92,7 @@ internal sealed class EditorExplorer : DockPanel
 
         // Auto-set root to the active document's folder.
         _window.State.ActiveDocumentChanged += OnActiveDocumentChanged;
-        OnActiveDocumentChanged(_window.State.ActiveDocument);
+        OnActiveDocumentChanged(this, _window.State.ActiveDocument);
 
         // Lazy-load children when a folder is expanded.
         _tree.AddHandler(TreeViewItem.ExpandedEvent, OnTreeViewItemExpanded);
@@ -184,7 +184,7 @@ internal sealed class EditorExplorer : DockPanel
 
     private string? _currentRoot;
 
-    private void OnActiveDocumentChanged(Phoenixml.Platform.Documents.Document? doc)
+    private void OnActiveDocumentChanged(object? sender, Phoenixml.Platform.Documents.Document? doc)
     {
         if (doc?.Source?.LocalPath is not string path) return;
         var folder = Path.GetDirectoryName(path);
