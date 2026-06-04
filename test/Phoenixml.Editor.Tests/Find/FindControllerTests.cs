@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using PhoenixmlDb.Core;
-using Phoenixml.Editor.Find;
+using Phoenixml.Workbench.Find;
 using Phoenixml.Platform.Editor.Xml;
 using Phoenixml.Platform.Editor.Xml.Tree;
 using Xunit;

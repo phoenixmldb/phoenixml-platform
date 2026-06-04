@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Phoenixml.Workbench.Find;
 
 namespace Phoenixml.Editor.Find;
 

@@ -4,13 +4,13 @@ using Phoenixml.Platform.Editor.Xml;
 using Phoenixml.Platform.Editor.Xml.Find;
 using Phoenixml.Platform.Editor.Xml.Tree;
 
-namespace Phoenixml.Editor.Find;
+namespace Phoenixml.Workbench.Find;
 
 /// <summary>
 /// Surface that <see cref="XPathQueryController"/> depends on. Mirrors <see cref="IFindHost"/>;
 /// implemented by <c>EditorMainWindow</c> and stubbable in tests.
 /// </summary>
-internal interface IXPathQueryHost
+public interface IXPathQueryHost
 {
     /// <summary>The active document, or <see langword="null"/> when none is open.</summary>
     XmlDocument? ActiveDocument { get; }
@@ -27,8 +27,8 @@ internal interface IXPathQueryHost
     /// <summary>Pushes a new match counter to the XPath bar.</summary>
     /// <param name="active">1-based active match index (0 when no active match).</param>
     /// <param name="total">Total match count.</param>
-    /// <param name="error">Compile/runtime error, or <see langword="null"/> on success.</param>
-    void SetXPathMatchCount(int active, int total, string? error);
+    /// <param name="errorMessage">Compile/runtime error, or <see langword="null"/> on success.</param>
+    void SetXPathMatchCount(int active, int total, string? errorMessage);
 
     /// <summary>
     /// Sets the scalar XPath result for display in the status bar. <see langword="null"/>
@@ -43,7 +43,7 @@ internal interface IXPathQueryHost
 /// Same shape as <see cref="FindController"/> but with one-shot evaluation per submit
 /// (no debounce, no live re-query as the user types — XPath compile can be expensive).
 /// </summary>
-internal sealed class XPathQueryController
+public sealed class XPathQueryController
 {
     private readonly IXPathQueryHost _host;
     private readonly MatchIndex _index;
@@ -96,7 +96,7 @@ internal sealed class XPathQueryController
         _activeIndex = (_activeIndex + 1) % _matches.Count;
         UpdateIndex();
         ShowActiveInTree();
-        _host.SetXPathMatchCount(_activeIndex + 1, _matches.Count, error: null);
+        _host.SetXPathMatchCount(_activeIndex + 1, _matches.Count, errorMessage: null);
     }
 
     /// <summary>Retreats to the previous match, wrapping around.</summary>
@@ -106,7 +106,7 @@ internal sealed class XPathQueryController
         _activeIndex = (_activeIndex - 1 + _matches.Count) % _matches.Count;
         UpdateIndex();
         ShowActiveInTree();
-        _host.SetXPathMatchCount(_activeIndex + 1, _matches.Count, error: null);
+        _host.SetXPathMatchCount(_activeIndex + 1, _matches.Count, errorMessage: null);
     }
 
     /// <summary>Clears all match state and hides the XPath bar.</summary>
@@ -145,7 +145,7 @@ internal sealed class XPathQueryController
                 _matches = [];
                 _activeIndex = -1;
                 UpdateIndex();
-                _host.SetXPathMatchCount(0, 0, error: null);
+                _host.SetXPathMatchCount(0, 0, errorMessage: null);
                 _host.SetXPathScalar(null);
                 return;
             }
@@ -156,7 +156,7 @@ internal sealed class XPathQueryController
                 _matches = [];
                 _activeIndex = -1;
                 UpdateIndex();
-                _host.SetXPathMatchCount(0, 0, error: result.Error);
+                _host.SetXPathMatchCount(0, 0, errorMessage: result.Error);
                 _host.SetXPathScalar(null);
                 return;
             }
@@ -167,7 +167,7 @@ internal sealed class XPathQueryController
                 : -1;
             UpdateIndex();
             if (_activeIndex >= 0) ShowActiveInTree();
-            _host.SetXPathMatchCount(_activeIndex < 0 ? 0 : _activeIndex + 1, _matches.Count, error: null);
+            _host.SetXPathMatchCount(_activeIndex < 0 ? 0 : _activeIndex + 1, _matches.Count, errorMessage: null);
             _host.SetXPathScalar(result.Scalar);
         }
         finally

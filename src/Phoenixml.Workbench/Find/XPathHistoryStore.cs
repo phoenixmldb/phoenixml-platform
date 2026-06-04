@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-namespace Phoenixml.Editor.Find;
+namespace Phoenixml.Workbench.Find;
 
 /// <summary>
 /// On-disk persistence for <see cref="XPathHistory"/>. Plain-text, newline-delimited;

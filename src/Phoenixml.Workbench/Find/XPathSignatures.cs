@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Phoenixml.Editor.Find;
+namespace Phoenixml.Workbench.Find;
 
 /// <summary>
 /// Curated map of XPath 3.1 <c>fn:*</c> function signatures (local name → signature string).

@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using PhoenixmlDb.Core;
 using Phoenixml.Platform.Abstractions.Editing;
 
-namespace Phoenixml.Editor.Find;
+namespace Phoenixml.Workbench.Find;
 
 /// <summary>
 /// Tracks the current set of matching <see cref="NodeId"/>s and the single active (focused)
@@ -11,7 +11,7 @@ namespace Phoenixml.Editor.Find;
 /// <see cref="Phoenixml.Platform.Editor.Xml.Tree.XmlTreeNodeProvider"/> via
 /// <see cref="IMatchIndex"/> to annotate tree rows with match-highlight state.
 /// </summary>
-internal sealed class MatchIndex : IMatchIndex
+public sealed class MatchIndex : IMatchIndex
 {
     private HashSet<NodeId> _matches = [];
     private NodeId? _active;

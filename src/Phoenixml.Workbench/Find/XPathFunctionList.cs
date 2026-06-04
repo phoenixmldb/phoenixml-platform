@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Phoenixml.Editor.Find;
+namespace Phoenixml.Workbench.Find;
 
 /// <summary>
 /// Autocompletion source for the XPath query bar. Hand-curated lists of XPath 3.1

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using PhoenixmlDb.Xdm.Nodes;
 using Phoenixml.Platform.Editor.Xml;
 
-namespace Phoenixml.Editor.Find;
+namespace Phoenixml.Workbench.Find;
 
 /// <summary>Kind of token the caret is currently positioned to complete.</summary>
 public enum XPathContextKind

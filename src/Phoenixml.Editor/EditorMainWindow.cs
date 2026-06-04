@@ -7,6 +7,7 @@ using Avalonia.Input.Platform;
 using Phoenixml.Editor.Clipboard;
 using Phoenixml.Editor.Commands;
 using Phoenixml.Editor.Find;
+using Phoenixml.Workbench.Find;
 using Phoenixml.Editor.Menus;
 using Phoenixml.Editor.Quit;
 using Phoenixml.Workbench.Settings;
@@ -159,9 +160,9 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
             {
                 all = kind switch
                 {
-                    Find.XPathContextKind.ElementName =>
+                    Phoenixml.Workbench.Find.XPathContextKind.ElementName =>
                         Phoenixml.Platform.Editor.Xml.Validation.SchemaElementNameHarvester.AllReachableElementNames(schemas),
-                    Find.XPathContextKind.AttributeName =>
+                    Phoenixml.Workbench.Find.XPathContextKind.AttributeName =>
                         Phoenixml.Platform.Editor.Xml.Validation.SchemaElementNameHarvester.AllAttributeNames(schemas),
                     _ => Array.Empty<string>(),
                 };
@@ -170,8 +171,8 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
             {
                 all = kind switch
                 {
-                    Find.XPathContextKind.ElementName => Find.XPathContextProvider.CollectElementNames(doc),
-                    Find.XPathContextKind.AttributeName => Find.XPathContextProvider.CollectAttributeNames(doc),
+                    Phoenixml.Workbench.Find.XPathContextKind.ElementName => Phoenixml.Workbench.Find.XPathContextProvider.CollectElementNames(doc),
+                    Phoenixml.Workbench.Find.XPathContextKind.AttributeName => Phoenixml.Workbench.Find.XPathContextProvider.CollectAttributeNames(doc),
                     _ => Array.Empty<string>(),
                 };
             }
@@ -187,7 +188,7 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
         // Plan 24: persist XPath history across sessions. Load on startup; save on close.
         try
         {
-            _xpathController.LoadHistory(Find.XPathHistoryStore.Load(Find.XPathHistoryStore.DefaultPath));
+            _xpathController.LoadHistory(Phoenixml.Workbench.Find.XPathHistoryStore.Load(Phoenixml.Workbench.Find.XPathHistoryStore.DefaultPath));
         }
         catch (IOException) { /* permission / disk — silent */ }
         catch (UnauthorizedAccessException) { /* silent */ }
@@ -731,8 +732,8 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
         {
             try
             {
-                Find.XPathHistoryStore.Save(
-                    Find.XPathHistoryStore.DefaultPath,
+                Phoenixml.Workbench.Find.XPathHistoryStore.Save(
+                    Phoenixml.Workbench.Find.XPathHistoryStore.DefaultPath,
                     _xpathController.SnapshotHistory());
             }
             catch (IOException) { /* silent */ }
@@ -1496,8 +1497,8 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
     void IXPathQueryHost.HideXPathBar() => HideXPathBar();
 
     /// <inheritdoc/>
-    void IXPathQueryHost.SetXPathMatchCount(int active, int total, string? error) =>
-        _xpathBar.SetMatchCount(active, total, error);
+    void IXPathQueryHost.SetXPathMatchCount(int active, int total, string? errorMessage) =>
+        _xpathBar.SetMatchCount(active, total, errorMessage);
 
     /// <inheritdoc/>
     void IXPathQueryHost.SetXPathScalar(string? scalar)

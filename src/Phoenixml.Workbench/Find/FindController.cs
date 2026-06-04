@@ -6,14 +6,14 @@ using Phoenixml.Platform.Editor.Xml.Editing;
 using Phoenixml.Platform.Editor.Xml.Find;
 using Phoenixml.Platform.Editor.Xml.Tree;
 
-namespace Phoenixml.Editor.Find;
+namespace Phoenixml.Workbench.Find;
 
 /// <summary>
 /// Surface that <see cref="FindController"/> depends on for document access,
 /// tree navigation, and UI updates. Implemented by <c>EditorMainWindow</c>;
 /// stubbed in unit tests.
 /// </summary>
-internal interface IFindHost
+public interface IFindHost
 {
     /// <summary>The currently active XML document, or <see langword="null"/> when none is open.</summary>
     XmlDocument? ActiveDocument { get; }
@@ -51,7 +51,7 @@ internal interface IFindHost
 ///   <item><see cref="OnClose"/> → clear the index → hide the bar.</item>
 /// </list>
 /// </remarks>
-internal sealed class FindController
+public sealed class FindController
 {
     private readonly IFindHost _host;
     private readonly MatchIndex _index;

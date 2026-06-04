@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Phoenixml.Editor.Find;
+namespace Phoenixml.Workbench.Find;
 
 /// <summary>
 /// Per-session XPath query history. Most-recent first, deduplicated (re-submitting an

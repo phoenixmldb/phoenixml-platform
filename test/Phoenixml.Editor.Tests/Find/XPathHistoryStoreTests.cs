@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using Phoenixml.Editor.Find;
+using Phoenixml.Workbench.Find;
 using Xunit;
 
 namespace Phoenixml.Editor.Tests.Find;
