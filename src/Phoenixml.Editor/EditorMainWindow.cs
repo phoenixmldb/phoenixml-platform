@@ -5,7 +5,9 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Phoenixml.Editor.Clipboard;
+using Phoenixml.Workbench.Clipboard;
 using Phoenixml.Editor.Commands;
+using Phoenixml.Workbench.Commands;
 using Phoenixml.Editor.Find;
 using Phoenixml.Workbench.Find;
 using Phoenixml.Editor.Menus;
@@ -596,7 +598,7 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
                 if (_state.ActiveDocument is Phoenixml.Platform.Editor.Text.TextDocument)
                     _textEditor.Undo();
                 else
-                    UndoCommand.Execute(this);
+                    UndoCommand.Execute(_state);
             }),
         });
         _window.KeyBindings.Add(new KeyBinding
@@ -607,7 +609,7 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
                 if (_state.ActiveDocument is Phoenixml.Platform.Editor.Text.TextDocument)
                     _textEditor.Redo();
                 else
-                    RedoCommand.Execute(this);
+                    RedoCommand.Execute(_state);
             }),
         });
         _window.KeyBindings.Add(new KeyBinding

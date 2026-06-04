@@ -3,14 +3,14 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 
-namespace Phoenixml.Editor.Explorer;
+namespace Phoenixml.Workbench.Explorer;
 
 /// <summary>
-/// View-model for one folder or file row in the <see cref="EditorExplorer"/>.
+/// View-model for one folder or file row in the editor's Explorer pane.
 /// Folders lazily populate <see cref="Children"/> on first expansion so the explorer
 /// doesn't freeze on deep trees.
 /// </summary>
-internal sealed class ExplorerNode
+public sealed class ExplorerNode
 {
     private static readonly string[] s_xmlExtensions = [".xml", ".xsd", ".xsl", ".xslt", ".sch"];
 

@@ -1,4 +1,4 @@
-namespace Phoenixml.Editor.Commands;
+namespace Phoenixml.Workbench.Commands;
 
 /// <summary>
 /// Minimal <see cref="System.Windows.Input.ICommand"/> implementation that wraps a
@@ -6,7 +6,7 @@ namespace Phoenixml.Editor.Commands;
 /// <see cref="CanExecute"/> always returns <see langword="true"/>; this command does not
 /// raise <see cref="CanExecuteChanged"/>.
 /// </summary>
-internal sealed class RelayCommand : System.Windows.Input.ICommand
+public sealed class RelayCommand : System.Windows.Input.ICommand
 {
     private readonly Action _execute;
 

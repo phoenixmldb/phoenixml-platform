@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Avalonia.Input;
 using Phoenixml.Editor.Clipboard;
+using Phoenixml.Workbench.Clipboard;
 using Xunit;
 
 namespace Phoenixml.Editor.Tests.Clipboard;

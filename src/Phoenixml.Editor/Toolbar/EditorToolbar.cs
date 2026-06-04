@@ -8,6 +8,7 @@ using Avalonia.Media;
 using Material.Icons;
 using Material.Icons.Avalonia;
 using Phoenixml.Editor.Commands;
+using Phoenixml.Workbench.Commands;
 
 namespace Phoenixml.Editor.Toolbar;
 
@@ -35,9 +36,9 @@ internal sealed class EditorToolbar : StackPanel
             Background = Brushes.Transparent,
         });
         Children.Add(BuildButton(MaterialIconKind.Undo, "Undo (Ctrl+Z)",
-            () => UndoCommand.Execute(window)));
+            () => UndoCommand.Execute(window.State)));
         Children.Add(BuildButton(MaterialIconKind.Redo, "Redo (Ctrl+Y)",
-            () => RedoCommand.Execute(window)));
+            () => RedoCommand.Execute(window.State)));
     }
 
     private static Button BuildButton(MaterialIconKind icon, string tooltip, Action onClick)

@@ -1,7 +1,7 @@
 using System;
 using System.Text.RegularExpressions;
 
-namespace Phoenixml.Editor.Clipboard;
+namespace Phoenixml.Workbench.Clipboard;
 
 /// <summary>
 /// Serialization shim for attribute-clipboard wire format: <c>name="value"</c> with the

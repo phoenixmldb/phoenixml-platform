@@ -1,6 +1,6 @@
 namespace Phoenixml.Editor.Commands;
 
-internal static class SaveFileCommand
+public static class SaveFileCommand
 {
     public static async Task ExecuteAsync(EditorMainWindow window, CancellationToken ct)
     {

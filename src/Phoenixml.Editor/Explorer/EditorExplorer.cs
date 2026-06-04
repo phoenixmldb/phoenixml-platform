@@ -8,6 +8,7 @@ using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Phoenixml.Workbench.Explorer;
 using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
 using Phoenixml.Platform.Editor.Xml;

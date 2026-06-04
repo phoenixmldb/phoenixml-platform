@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Phoenixml.Editor.Commands;
+using Phoenixml.Workbench.Commands;
 
 namespace Phoenixml.Editor.Menus;
 
@@ -23,14 +24,14 @@ internal static class EditMenu
             Header = "_Undo",
             InputGesture = new KeyGesture(Key.Z, KeyModifiers.Control),
         };
-        undoItem.Click += (_, _) => UndoCommand.Execute(window);
+        undoItem.Click += (_, _) => UndoCommand.Execute(window.State);
 
         var redoItem = new MenuItem
         {
             Header = "_Redo",
             InputGesture = new KeyGesture(Key.Y, KeyModifiers.Control),
         };
-        redoItem.Click += (_, _) => RedoCommand.Execute(window);
+        redoItem.Click += (_, _) => RedoCommand.Execute(window.State);
 
         return new MenuItem
         {
