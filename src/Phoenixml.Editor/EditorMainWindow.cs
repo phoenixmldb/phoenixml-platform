@@ -9,7 +9,7 @@ using Phoenixml.Editor.Commands;
 using Phoenixml.Editor.Find;
 using Phoenixml.Editor.Menus;
 using Phoenixml.Editor.Quit;
-using Phoenixml.Editor.Settings;
+using Phoenixml.Workbench.Settings;
 using Phoenixml.Editor.Validation;
 using Phoenixml.Workbench.ViewModels;
 using Lsp = Phoenixml.Workbench.Lsp;

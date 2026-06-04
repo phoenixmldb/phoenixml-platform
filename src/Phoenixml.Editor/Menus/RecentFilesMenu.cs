@@ -1,6 +1,6 @@
 using System.IO;
 using Avalonia.Controls;
-using Phoenixml.Editor.Settings;
+using Phoenixml.Workbench.Settings;
 
 namespace Phoenixml.Editor.Menus;
 

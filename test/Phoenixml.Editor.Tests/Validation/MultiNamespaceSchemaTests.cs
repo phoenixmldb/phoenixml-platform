@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using Phoenixml.Editor.Settings;
+using Phoenixml.Workbench.Settings;
 using Phoenixml.Editor.Validation;
 using Phoenixml.Platform.Editor.Xml;
 using Xunit;

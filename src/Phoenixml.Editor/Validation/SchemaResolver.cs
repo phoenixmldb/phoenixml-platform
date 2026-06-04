@@ -2,7 +2,7 @@ using System.IO;
 using System.Xml.Schema;
 using PhoenixmlDb.Core;
 using PhoenixmlDb.Xdm.Nodes;
-using Phoenixml.Editor.Settings;
+using Phoenixml.Workbench.Settings;
 using Phoenixml.Platform.Editor.Xml;
 
 namespace Phoenixml.Editor.Validation;

@@ -12,8 +12,8 @@ namespace Phoenixml.Editor.Menus;
 /// </summary>
 /// <remarks>
 /// Opens an XSD file picker for the active document. On confirmation the chosen path is
-/// persisted into <see cref="Settings.EditorSettings.PerDocumentSchema"/> via
-/// <see cref="Settings.EditorSettingsStore.SetPerDocumentSchema"/>, then an immediate
+/// persisted into <see cref="Phoenixml.Workbench.Settings.EditorSettings.PerDocumentSchema"/> via
+/// <see cref="Phoenixml.Workbench.Settings.EditorSettingsStore.SetPerDocumentSchema"/>, then an immediate
 /// re-validation pass is triggered via
 /// <see cref="Validation.EditorValidationService.Revalidate"/> so diagnostics refresh
 /// without the user having to make a document edit.

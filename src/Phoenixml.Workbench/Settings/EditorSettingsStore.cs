@@ -1,14 +1,14 @@
 using System.Text.Json;
 using Phoenixml.Platform.Hosting;
 
-namespace Phoenixml.Editor.Settings;
+namespace Phoenixml.Workbench.Settings;
 
 /// <summary>
 /// Loads and saves <see cref="EditorSettings"/> to the platform settings file.
 /// In-memory mutations fire <see cref="Changed"/> so menus can refresh.
 /// Save runs in the background; failures are swallowed so they never crash the editor.
 /// </summary>
-internal sealed class EditorSettingsStore
+public sealed class EditorSettingsStore
 {
     private const int RecentFilesCap = 10;
 
@@ -37,11 +37,13 @@ internal sealed class EditorSettingsStore
     /// <summary>Gets the current in-memory settings snapshot.</summary>
     public EditorSettings Settings => _settings;
 
+#pragma warning disable CA1003
     /// <summary>
     /// Raised after <see cref="LoadAsync"/> completes and after each
     /// <see cref="RecordRecentFile"/> call so subscribers (e.g. menus) can refresh.
     /// </summary>
     public event Action? Changed;
+#pragma warning restore CA1003
 
     /// <summary>
     /// Loads settings from disk. Tolerates a missing file (starts fresh) or a corrupt

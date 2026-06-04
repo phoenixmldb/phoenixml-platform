@@ -10,8 +10,13 @@
          CA1819: LSP records expose arrays directly because they mirror JSON-RPC payloads;
          ReadOnlyCollection wrappers would break STJ source-gen and the wire format.
          CA2000: StreamJsonRpc owns the lifetimes of the formatter/handler it's handed;
-         disposing them ourselves would tear down the live JSON-RPC connection. -->
-    <NoWarn>$(NoWarn);CA2007;CA1054;CA1056;CA1819;CA2000</NoWarn>
+         disposing them ourselves would tear down the live JSON-RPC connection.
+         CA1001: workbench services own disposable fields but themselves live for the
+         workbench session — disposal is implicit at process exit. Matches Editor's stance.
+         CA1002: workbench JSON-serialised settings expose List&lt;T&gt; properties because
+         that's what System.Text.Json's source generator targets cleanly; Collection&lt;T&gt;
+         would break round-tripping without buying real encapsulation. -->
+    <NoWarn>$(NoWarn);CA2007;CA1054;CA1056;CA1819;CA2000;CA1001;CA1002</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="StreamJsonRpc" />
