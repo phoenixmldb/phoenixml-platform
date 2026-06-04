@@ -3,7 +3,7 @@ using System.IO;
 using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
-using Phoenixml.Editor.Lsp;
+using Phoenixml.Workbench.Lsp;
 using StreamJsonRpc;
 using Xunit;
 

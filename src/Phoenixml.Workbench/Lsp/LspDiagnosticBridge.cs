@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Phoenixml.Editor.Lsp;
+namespace Phoenixml.Workbench.Lsp;
 
 /// <summary>
 /// One LSP diagnostic mapped into a flat editor-friendly shape. Carries 0-based

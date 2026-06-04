@@ -12,6 +12,7 @@ using Phoenixml.Editor.Quit;
 using Phoenixml.Editor.Settings;
 using Phoenixml.Editor.Validation;
 using Phoenixml.Editor.ViewModels;
+using Lsp = Phoenixml.Workbench.Lsp;
 using Phoenixml.Platform.Abstractions.Documents;
 using Phoenixml.Platform.Abstractions.Editing;
 using Phoenixml.Platform.Editor.Xml;

@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Phoenixml.Editor.Lsp;
+namespace Phoenixml.Workbench.Lsp;
 
 // Minimal LSP subset duplicated client-side. Same shape as the server-side DTOs.
 // Plan 26 candidate: factor into a shared PhoenixmlDb.Lsp.Common library.

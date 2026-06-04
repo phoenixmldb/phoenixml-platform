@@ -26,13 +26,13 @@
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="Avalonia.Diagnostics" Condition="'$(Configuration)' == 'Debug'" />
     <PackageReference Include="Material.Icons.Avalonia" />
-    <PackageReference Include="StreamJsonRpc" />
     <PackageReference Include="Avalonia.AvaloniaEdit" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Phoenixml.Platform/Phoenixml.Platform.csproj" />
     <ProjectReference Include="../Phoenixml.Platform.Editor.Xml/Phoenixml.Platform.Editor.Xml.csproj" />
     <ProjectReference Include="../Phoenixml.Platform.Editor.Text/Phoenixml.Platform.Editor.Text.csproj" />
+    <ProjectReference Include="../Phoenixml.Workbench/Phoenixml.Workbench.csproj" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Views/SyntaxHighlighting/XQuery.xshd" />
@@ -55,13 +55,15 @@
       <_XQueryLspSrc>$(MSBuildThisFileDirectory)../../../phoenixmldb/phoenixmldb-xquery/src/PhoenixmlDb.XQuery.LanguageServer</_XQueryLspSrc>
       <_XsltLspSrc>$(MSBuildThisFileDirectory)../../../phoenixmldb/phoenixmldb-xslt/src/PhoenixmlDb.Xslt.LanguageServer</_XsltLspSrc>
     </PropertyGroup>
+    <!-- LSP servers are multi-target (net8.0;net10.0); -f must match the editor's TFM
+         (net10.0 via Directory.Build.props), otherwise publish errors with NETSDK1129. -->
     <Exec
       Condition="Exists('$(_XQueryLspSrc)') And !Exists('$(_LspToolsDir)/phoenixmldb-xquery-lsp')"
-      Command="dotnet publish &quot;$(_XQueryLspSrc)&quot; -c Release -o &quot;$(_LspToolsDir)&quot;"
+      Command="dotnet publish &quot;$(_XQueryLspSrc)&quot; -c Release -f net10.0 -o &quot;$(_LspToolsDir)&quot;"
       ContinueOnError="true" />
     <Exec
       Condition="Exists('$(_XsltLspSrc)') And !Exists('$(_LspToolsDir)/phoenixmldb-xslt-lsp')"
-      Command="dotnet publish &quot;$(_XsltLspSrc)&quot; -c Release -o &quot;$(_LspToolsDir)&quot;"
+      Command="dotnet publish &quot;$(_XsltLspSrc)&quot; -c Release -f net10.0 -o &quot;$(_LspToolsDir)&quot;"
       ContinueOnError="true" />
   </Target>
 </Project>

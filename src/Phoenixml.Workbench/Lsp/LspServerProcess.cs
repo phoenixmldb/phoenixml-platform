@@ -2,7 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 
-namespace Phoenixml.Editor.Lsp;
+namespace Phoenixml.Workbench.Lsp;
 
 /// <summary>
 /// Wraps <see cref="Process"/> for an LSP server child process. Exposes the child's

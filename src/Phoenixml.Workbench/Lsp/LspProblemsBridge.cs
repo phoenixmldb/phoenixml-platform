@@ -4,7 +4,7 @@ using System.Linq;
 using Phoenixml.Platform.Abstractions.Editing;
 using Phoenixml.Platform.Editor.Xml.Validation;
 
-namespace Phoenixml.Editor.Lsp;
+namespace Phoenixml.Workbench.Lsp;
 
 /// <summary>
 /// Converts an LSP <see cref="LspPublishDiagnosticsParams"/> into editor

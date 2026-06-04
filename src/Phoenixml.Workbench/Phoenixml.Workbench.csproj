@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Phoenixml.Workbench</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <Description>Phoenixml.Workbench — headless editor core. Shell-agnostic LSP, document, command, and outline models that any UI (Avalonia, Godot, headless) can host.</Description>
+    <!-- CA2007: workbench services are awaited by shells that capture a UI SynchronizationContext;
+         the shells own the threading decision, not this library.
+         CA1054/CA1056: LSP wire protocol uses string URIs (DocumentUri JSON type); System.Uri
+         would force lossy round-trips and break LSP serialisation.
+         CA1819: LSP records expose arrays directly because they mirror JSON-RPC payloads;
+         ReadOnlyCollection wrappers would break STJ source-gen and the wire format.
+         CA2000: StreamJsonRpc owns the lifetimes of the formatter/handler it's handed;
+         disposing them ourselves would tear down the live JSON-RPC connection. -->
+    <NoWarn>$(NoWarn);CA2007;CA1054;CA1056;CA1819;CA2000</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="StreamJsonRpc" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Phoenixml.Platform/Phoenixml.Platform.csproj" />
+    <ProjectReference Include="../Phoenixml.Platform.Editor.Xml/Phoenixml.Platform.Editor.Xml.csproj" />
+    <ProjectReference Include="../Phoenixml.Platform.Editor.Text/Phoenixml.Platform.Editor.Text.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Phoenixml.Editor.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+</Project>

@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Phoenixml.Platform.Abstractions.Documents;
 using Phoenixml.Platform.Editor.Text;
 
-namespace Phoenixml.Editor.Lsp;
+namespace Phoenixml.Workbench.Lsp;
 
 /// <summary>
 /// Per-document LSP session. Couples a <see cref="TextDocument"/> to an

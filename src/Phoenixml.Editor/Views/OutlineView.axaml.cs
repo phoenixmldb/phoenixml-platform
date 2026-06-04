@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
-using Phoenixml.Editor.Lsp;
+using Phoenixml.Workbench.Lsp;
 
 namespace Phoenixml.Editor.Views;
 

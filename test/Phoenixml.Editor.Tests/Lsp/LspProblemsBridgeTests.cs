@@ -1,4 +1,4 @@
-using Phoenixml.Editor.Lsp;
+using Phoenixml.Workbench.Lsp;
 using Phoenixml.Platform.Abstractions.Editing;
 using Xunit;
 

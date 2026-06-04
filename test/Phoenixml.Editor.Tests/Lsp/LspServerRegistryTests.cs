@@ -1,5 +1,5 @@
 using System.IO;
-using Phoenixml.Editor.Lsp;
+using Phoenixml.Workbench.Lsp;
 using Phoenixml.Platform.Abstractions.Documents;
 using Xunit;
 

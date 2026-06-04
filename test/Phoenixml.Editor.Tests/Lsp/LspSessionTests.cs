@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO.Pipelines;
 using System.Threading.Tasks;
-using Phoenixml.Editor.Lsp;
+using Phoenixml.Workbench.Lsp;
 using Phoenixml.Platform.Abstractions.Documents;
 using Phoenixml.Platform.Editor.Text;
 using StreamJsonRpc;

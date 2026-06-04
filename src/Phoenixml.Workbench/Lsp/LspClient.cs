@@ -3,7 +3,7 @@ using System.IO;
 using System.Threading.Tasks;
 using StreamJsonRpc;
 
-namespace Phoenixml.Editor.Lsp;
+namespace Phoenixml.Workbench.Lsp;
 
 /// <summary>
 /// Minimal LSP 3.17 client: sends <c>initialize</c>, <c>textDocument/didOpen</c>,

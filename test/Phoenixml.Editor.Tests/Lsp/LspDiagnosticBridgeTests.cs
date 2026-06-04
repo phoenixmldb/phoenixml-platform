@@ -1,4 +1,4 @@
-using Phoenixml.Editor.Lsp;
+using Phoenixml.Workbench.Lsp;
 using Xunit;
 
 namespace Phoenixml.Editor.Tests.Lsp;

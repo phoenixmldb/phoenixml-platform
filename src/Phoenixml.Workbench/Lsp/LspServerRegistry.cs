@@ -1,7 +1,7 @@
 using System.IO;
 using Phoenixml.Platform.Abstractions.Documents;
 
-namespace Phoenixml.Editor.Lsp;
+namespace Phoenixml.Workbench.Lsp;
 
 /// <summary>
 /// Maps a <see cref="DocumentKind"/> to the on-disk path of its LSP server binary.
