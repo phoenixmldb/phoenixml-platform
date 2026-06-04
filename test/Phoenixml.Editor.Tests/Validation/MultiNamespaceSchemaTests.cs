@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using Phoenixml.Workbench.Settings;
-using Phoenixml.Editor.Validation;
+using Phoenixml.Workbench.Validation;
 using Phoenixml.Platform.Editor.Xml;
 using Xunit;
 

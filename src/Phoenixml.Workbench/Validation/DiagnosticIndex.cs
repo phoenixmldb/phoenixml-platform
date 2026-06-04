@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using PhoenixmlDb.Core;
 using Phoenixml.Platform.Abstractions.Editing;
 
-namespace Phoenixml.Editor.Validation;
+namespace Phoenixml.Workbench.Validation;
 
 /// <summary>
 /// Maps XDM <see cref="NodeId"/> values to the highest <see cref="DiagnosticSeverity"/>
@@ -11,7 +11,7 @@ namespace Phoenixml.Editor.Validation;
 /// <see cref="Phoenixml.Platform.Editor.Xml.Tree.XmlTreeNodeProvider"/> to annotate
 /// tree rows with inline error glyphs.
 /// </summary>
-internal sealed class DiagnosticIndex : IDiagnosticIndex
+public sealed class DiagnosticIndex : IDiagnosticIndex
 {
     private Dictionary<NodeId, DiagnosticSeverity> _byNode = new();
 

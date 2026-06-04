@@ -5,12 +5,12 @@ using PhoenixmlDb.Xdm.Nodes;
 using Phoenixml.Workbench.Settings;
 using Phoenixml.Platform.Editor.Xml;
 
-namespace Phoenixml.Editor.Validation;
+namespace Phoenixml.Workbench.Validation;
 
 /// <summary>
 /// Describes how a schema was resolved so callers can reason about priority and source.
 /// </summary>
-internal enum SchemaResolutionKind
+public enum SchemaResolutionKind
 {
     /// <summary>A per-document path stored in <see cref="EditorSettings.PerDocumentSchema"/>.</summary>
     Override,
@@ -43,7 +43,7 @@ internal enum SchemaResolutionKind
 /// <param name="Schemas">The compiled schema set.</param>
 /// <param name="SourcePath">Absolute path of the XSD file that was loaded.</param>
 /// <param name="Kind">How the schema was located.</param>
-internal sealed record SchemaResolution(XmlSchemaSet Schemas, string SourcePath, SchemaResolutionKind Kind);
+public sealed record SchemaResolution(XmlSchemaSet Schemas, string SourcePath, SchemaResolutionKind Kind);
 
 /// <summary>
 /// Resolves an <see cref="XmlSchemaSet"/> for a given document.
@@ -57,7 +57,7 @@ internal sealed record SchemaResolution(XmlSchemaSet Schemas, string SourcePath,
 /// </list>
 /// Returns <see langword="null"/> when no schema is found; callers should skip validation silently.
 /// </remarks>
-internal sealed class SchemaResolver
+public sealed class SchemaResolver
 {
     private static readonly string[] s_subfolderNames = ["schemas", "xsd"];
 

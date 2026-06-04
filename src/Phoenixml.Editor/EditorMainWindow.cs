@@ -11,6 +11,7 @@ using Phoenixml.Editor.Menus;
 using Phoenixml.Editor.Quit;
 using Phoenixml.Workbench.Settings;
 using Phoenixml.Editor.Validation;
+using Phoenixml.Workbench.Validation;
 using Phoenixml.Workbench.ViewModels;
 using Lsp = Phoenixml.Workbench.Lsp;
 using ViewModels = Phoenixml.Workbench.ViewModels;

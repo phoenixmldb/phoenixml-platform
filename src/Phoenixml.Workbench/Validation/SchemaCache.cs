@@ -4,7 +4,7 @@ using System.Xml;
 using System.Xml.Schema;
 using EditorXmlSchemaValidator = Phoenixml.Platform.Editor.Xml.Validation.XmlSchemaValidator;
 
-namespace Phoenixml.Editor.Validation;
+namespace Phoenixml.Workbench.Validation;
 
 /// <summary>
 /// Caches compiled <see cref="XmlSchemaSet"/> instances keyed by absolute path and
@@ -25,7 +25,7 @@ namespace Phoenixml.Editor.Validation;
 /// an equivalent value. The cost (one extra load) is negligible given validation is debounced.
 /// </para>
 /// </remarks>
-internal sealed class SchemaCache
+public sealed class SchemaCache
 {
     // Primary cache: keyed by (absolutePath, mtime-ticks).
     // On cache hit the instance is returned without any disk access.

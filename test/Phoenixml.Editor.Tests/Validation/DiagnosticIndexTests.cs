@@ -1,5 +1,5 @@
 using PhoenixmlDb.Core;
-using Phoenixml.Editor.Validation;
+using Phoenixml.Workbench.Validation;
 using Phoenixml.Platform.Abstractions.Editing;
 using Xunit;
 

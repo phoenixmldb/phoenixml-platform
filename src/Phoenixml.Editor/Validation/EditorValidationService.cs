@@ -5,6 +5,7 @@ using Phoenixml.Platform.Abstractions.Documents;
 using Phoenixml.Platform.Abstractions.Editing;
 using Phoenixml.Platform.Editor.Xml;
 using Phoenixml.Platform.Editor.Xml.Validation;
+using Phoenixml.Workbench.Validation;
 
 namespace Phoenixml.Editor.Validation;
 

@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using Phoenixml.Workbench.Settings;
-using Phoenixml.Editor.Validation;
+using Phoenixml.Workbench.Validation;
 using Phoenixml.Platform.Editor.Xml;
 using Xunit;
 using PlatformDocumentId = Phoenixml.Platform.Abstractions.Documents.DocumentId;
