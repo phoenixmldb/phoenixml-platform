@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <Description>Workbench shell-agnosticism spike. Drives EditorState + LSP from a console process to prove the workbench layer holds no UI assumptions.</Description>
+    <!-- Spike: tolerate CS1591 + minor analyzer noise. CA2007: console process,
+         no UI sync context to capture. -->
+    <NoWarn>$(NoWarn);CS1591;CA2007;CA1303</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Phoenixml.Workbench/Phoenixml.Workbench.csproj" />
+    <ProjectReference Include="../../src/Phoenixml.Platform/Phoenixml.Platform.csproj" />
+    <ProjectReference Include="../../src/Phoenixml.Platform.Editor.Xml/Phoenixml.Platform.Editor.Xml.csproj" />
+  </ItemGroup>
+</Project>

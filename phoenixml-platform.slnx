@@ -8,6 +8,7 @@
   </Folder>
   <Folder Name="/spike/">
     <Project Path="spike/Phoenixml.Platform.ChromeSpike/Phoenixml.Platform.ChromeSpike.csproj" />
+    <Project Path="spike/Phoenixml.Workbench.Spike/Phoenixml.Workbench.Spike.csproj" />
   </Folder>
   <Folder Name="/test/">
     <Project Path="test/Phoenixml.Platform.Tests/Phoenixml.Platform.Tests.csproj" />
