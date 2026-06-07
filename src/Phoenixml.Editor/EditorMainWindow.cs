@@ -662,7 +662,7 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
         {
             var topLevel = TopLevel.GetTopLevel(_window);
             if (topLevel?.Clipboard is IClipboard clip)
-                _clipboard = ClipboardService.FromAvalonia(clip);
+                _clipboard = AvaloniaClipboardBackend.FromAvalonia(clip);
         };
 
         UpdateStatusBar();
