@@ -6,7 +6,6 @@ using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Phoenixml.Editor.Clipboard;
 using Phoenixml.Workbench.Clipboard;
-using Phoenixml.Editor.Commands;
 using Phoenixml.Workbench.Commands;
 using Phoenixml.Editor.Find;
 using Phoenixml.Workbench.Find;
@@ -100,10 +99,24 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
     /// </summary>
     internal EditorSettingsStore Settings { get; } = new();
 
+    /// <summary>
+    /// Workbench-facing file dialog port. Workbench file commands (Open / Save / SaveAs)
+    /// drive their UI through this so they stay free of Avalonia references.
+    /// </summary>
+    internal Phoenixml.Workbench.IO.IFileDialog FileDialog { get; private set; } = null!;
+
+    /// <summary>
+    /// Workbench-facing shell host port. ExitCommand and any future quit-flow uses this
+    /// to request the shell close itself.
+    /// </summary>
+    internal Phoenixml.Workbench.Shell.IShellHost ShellHost { get; private set; } = null!;
+
     /// <summary>Initializes a new <see cref="EditorMainWindow"/>.</summary>
     public EditorMainWindow()
     {
         _window = new MainWindow();
+        FileDialog = new Phoenixml.Editor.IO.AvaloniaFileDialog(() => TopLevel.GetTopLevel(_window));
+        ShellHost = new Phoenixml.Editor.Shell.AvaloniaShellHost(_window);
 
         // Start loading persisted settings in the background. The Recent Files menu
         // subscribes to Settings.Changed and will rebuild once the load completes.
@@ -616,13 +629,13 @@ public sealed class EditorMainWindow : IFindHost, IXPathQueryHost
         {
             Gesture = new KeyGesture(Key.O, KeyModifiers.Control),
             Command = new RelayCommand(async () =>
-                await OpenFileCommand.ExecuteAsync(this, CancellationToken.None)),
+                await OpenFileCommand.ExecuteAsync(FileDialog, _state, Settings, CancellationToken.None)),
         });
         _window.KeyBindings.Add(new KeyBinding
         {
             Gesture = new KeyGesture(Key.S, KeyModifiers.Control),
             Command = new RelayCommand(async () =>
-                await SaveFileCommand.ExecuteAsync(this, CancellationToken.None)),
+                await SaveFileCommand.ExecuteAsync(FileDialog, _state, Settings, CancellationToken.None)),
         });
         _window.KeyBindings.Add(new KeyBinding
         {

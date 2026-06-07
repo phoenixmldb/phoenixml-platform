@@ -7,7 +7,6 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Material.Icons;
 using Material.Icons.Avalonia;
-using Phoenixml.Editor.Commands;
 using Phoenixml.Workbench.Commands;
 
 namespace Phoenixml.Editor.Toolbar;
@@ -26,9 +25,9 @@ internal sealed class EditorToolbar : StackPanel
         Spacing = 2;
 
         Children.Add(BuildAsyncButton(MaterialIconKind.FolderOpen, "Open (Ctrl+O)",
-            () => OpenFileCommand.ExecuteAsync(window, CancellationToken.None)));
+            () => OpenFileCommand.ExecuteAsync(window.FileDialog, window.State, window.Settings, CancellationToken.None)));
         Children.Add(BuildAsyncButton(MaterialIconKind.ContentSave, "Save (Ctrl+S)",
-            () => SaveFileCommand.ExecuteAsync(window, CancellationToken.None)));
+            () => SaveFileCommand.ExecuteAsync(window.FileDialog, window.State, window.Settings, CancellationToken.None)));
         Children.Add(new Border
         {
             Width = 1,

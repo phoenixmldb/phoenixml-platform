@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using Phoenixml.Editor.Commands;
 using Phoenixml.Workbench.Commands;
 
 namespace Phoenixml.Editor.Menus;
@@ -20,15 +19,15 @@ internal static class FileMenu
 
         var openItem = new MenuItem { Header = "_Open..." };
         openItem.Click += async (_, _) =>
-            await OpenFileCommand.ExecuteAsync(window, CancellationToken.None);
+            await OpenFileCommand.ExecuteAsync(window.FileDialog, window.State, window.Settings, CancellationToken.None);
 
         var saveItem = new MenuItem { Header = "_Save" };
         saveItem.Click += async (_, _) =>
-            await SaveFileCommand.ExecuteAsync(window, CancellationToken.None);
+            await SaveFileCommand.ExecuteAsync(window.FileDialog, window.State, window.Settings, CancellationToken.None);
 
         var saveAsItem = new MenuItem { Header = "Save _As..." };
         saveAsItem.Click += async (_, _) =>
-            await SaveAsFileCommand.ExecuteAsync(window, CancellationToken.None);
+            await SaveAsFileCommand.ExecuteAsync(window.FileDialog, window.State, window.Settings, CancellationToken.None);
 
         var setSchemaItem = new MenuItem { Header = "_Set Schema..." };
         setSchemaItem.Click += async (_, _) =>
@@ -38,7 +37,7 @@ internal static class FileMenu
         compareItem.Click += async (_, _) => await window.CompareWithFileAsync();
 
         var exitItem = new MenuItem { Header = "E_xit" };
-        exitItem.Click += (_, _) => ExitCommand.Execute(window.Window);
+        exitItem.Click += (_, _) => ExitCommand.Execute(window.ShellHost);
 
         var recentItem = RecentFilesMenu.Build(window, window.Settings);
 
