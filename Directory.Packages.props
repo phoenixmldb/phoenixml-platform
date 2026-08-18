@@ -17,7 +17,7 @@
     <PackageVersion Include="Avalonia.Diagnostics" Version="11.2.4" />
     <PackageVersion Include="Avalonia.Headless" Version="11.2.4" />
     <PackageVersion Include="Avalonia.AvaloniaEdit" Version="11.2.0" />
-    <PackageVersion Include="StreamJsonRpc" Version="2.22.11" />
+    <PackageVersion Include="StreamJsonRpc" Version="2.25.29" />
     <!-- Microsoft.Extensions (10.x major-version-aligned with net10.0) -->
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" />
