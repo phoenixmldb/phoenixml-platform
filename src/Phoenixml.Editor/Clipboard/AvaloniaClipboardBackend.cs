@@ -9,7 +9,7 @@ namespace Phoenixml.Editor.Clipboard;
 
 /// <summary>
 /// Avalonia-backed <see cref="IClipboardBackend"/>. Translates the workbench's format-dictionary
-/// contract into a <see cref="DataObject"/> for the underlying <see cref="IClipboard"/>.
+/// contract into a <see cref="DataTransfer"/> for the underlying <see cref="IClipboard"/>.
 /// Lives in Editor so Workbench stays free of Avalonia references.
 /// </summary>
 internal sealed class AvaloniaClipboardBackend : IClipboardBackend
@@ -29,16 +29,25 @@ internal sealed class AvaloniaClipboardBackend : IClipboardBackend
     public Task SetFormatsAsync(IReadOnlyDictionary<string, string> payload)
     {
         ArgumentNullException.ThrowIfNull(payload);
-        var data = new DataObject();
+        // One item carrying every format, so other apps see a single clipboard entry.
+        var item = new DataTransferItem();
         foreach (var (format, value) in payload)
-            data.Set(format, value);
-        return _inner.SetDataObjectAsync(data);
+            item.Set(ToDataFormat(format), value);
+#pragma warning disable CA2000 // Dispose objects — the clipboard owns the DataTransfer and disposes it when unused
+        var data = new DataTransfer();
+#pragma warning restore CA2000
+        data.Add(item);
+        return _inner.SetDataAsync(data);
     }
 
-    public async Task<string?> GetDataAsync(string format) =>
-        await _inner.GetDataAsync(format).ConfigureAwait(false) as string;
+    public Task<string?> GetDataAsync(string format) =>
+        _inner.TryGetValueAsync(ToDataFormat(format));
 
-    public Task<string?> GetTextAsync() => _inner.GetTextAsync();
+    public Task<string?> GetTextAsync() => _inner.TryGetTextAsync();
 
     public Task SetTextAsync(string text) => _inner.SetTextAsync(text);
+
+    // Workbench keys are platform-visible formats (MIME types), so other applications can read them.
+    private static DataFormat<string> ToDataFormat(string format) =>
+        format == ClipboardFormats.Text ? DataFormat.Text : DataFormat.CreateStringPlatformFormat(format);
 }

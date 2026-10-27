@@ -45,8 +45,8 @@ public sealed partial class NodeListView : UserControl
     // and read it back in RowContextMenu_Opening. Consumed each Opening.
     private NodeRowViewModel? _pendingRightClickRow;
 
-    /// <summary>Custom data-object format used to carry a row's node id between drag-source and drop-target.</summary>
-    private const string NodeIdDataFormat = "application/x-phoenixml-nodeid";
+    /// <summary>App-private data format used to carry a row's node id between drag-source and drop-target.</summary>
+    private static readonly DataFormat<string> NodeIdDataFormat = DataFormat.CreateStringApplicationFormat("phoenixml-nodeid");
 
     // Drag-source state.
     private NodeRowViewModel? _pendingDragRow;
@@ -131,15 +131,17 @@ public sealed partial class NodeListView : UserControl
         _dragInProgress = true;
         dragRow.RowOpacity = 0.5;
 
-        var data = new DataObject();
-        data.Set(NodeIdDataFormat, dragRow.Node.Id);
+#pragma warning disable CA2000 // Dispose objects — DoDragDropAsync owns the DataTransfer and disposes it when the drag completes
+        var data = new DataTransfer();
+#pragma warning restore CA2000
+        data.Add(DataTransferItem.Create(NodeIdDataFormat, dragRow.Node.Id));
 
-        // Fire and forget — Avalonia's DoDragDrop is async but the result (drop effect) is
+        // Fire and forget — Avalonia's DoDragDropAsync is async but the result (drop effect) is
         // delivered through the DropEvent on the target. We only need to clean up source-side state.
         _ = StartDragAsync(dragRow, data, e);
     }
 
-    private async System.Threading.Tasks.Task StartDragAsync(NodeRowViewModel dragRow, DataObject data, PointerEventArgs e)
+    private async System.Threading.Tasks.Task StartDragAsync(NodeRowViewModel dragRow, DataTransfer data, PointerEventArgs e)
     {
         var ghostPopup = this.FindControl<Avalonia.Controls.Primitives.Popup>("DragGhostPopup");
         var ghostText = this.FindControl<TextBlock>("DragGhostText");
@@ -152,7 +154,7 @@ public sealed partial class NodeListView : UserControl
 
         try
         {
-            await DragDrop.DoDragDrop(e, data, DragDropEffects.Move).ConfigureAwait(true);
+            await DragDrop.DoDragDropAsync(e, data, DragDropEffects.Move).ConfigureAwait(true);
         }
         finally
         {
@@ -170,7 +172,7 @@ public sealed partial class NodeListView : UserControl
 
     private void OnRowDragOver(object? sender, DragEventArgs e)
     {
-        if (!e.Data.Contains(NodeIdDataFormat))
+        if (!e.DataTransfer.Contains(NodeIdDataFormat))
         {
             e.DragEffects = DragDropEffects.None;
             return;
@@ -195,7 +197,7 @@ public sealed partial class NodeListView : UserControl
         }
 
         // Reject drop on self.
-        var srcId = e.Data.Get(NodeIdDataFormat) as string;
+        var srcId = e.DataTransfer.TryGetValue(NodeIdDataFormat);
         if (srcId is not null && srcId == targetRow.Node.Id)
         {
             ClearDropIndicator();
@@ -238,12 +240,12 @@ public sealed partial class NodeListView : UserControl
     {
         try
         {
-            if (!e.Data.Contains(NodeIdDataFormat)) return;
+            if (!e.DataTransfer.Contains(NodeIdDataFormat)) return;
             if (e.Source is not Avalonia.Visual src) return;
             var lbi = src.FindAncestorOfType<ListBoxItem>(includeSelf: true);
             if (lbi?.DataContext is not NodeRowViewModel targetRow) return;
 
-            if (e.Data.Get(NodeIdDataFormat) is not string srcId) return;
+            if (e.DataTransfer.TryGetValue(NodeIdDataFormat) is not string srcId) return;
             if (srcId == targetRow.Node.Id) return;
 
             // Look up the source node from the flat-row list (must still be visible — which is
